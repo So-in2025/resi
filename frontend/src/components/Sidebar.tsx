@@ -1,9 +1,7 @@
-// En: frontend/src/components/Sidebar.tsx
-
 'use client';
 
-import Link from "next/link";
 import { FaHome, FaChartPie, FaLeaf, FaTimes, FaBars } from "react-icons/fa";
+import Link from "next/link";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -29,7 +27,7 @@ const Sidebar = ({ isOpen, onClose, onOpen, onSidebarClick }: SidebarProps) => {
       >
         <div className="flex flex-col items-start group-hover:items-start space-y-4 pt-4">
           {navigationItems.map((item) => (
-            <a
+            <Link
               key={item.name}
               href={item.href}
               onClick={() => onSidebarClick(item.id)}
@@ -41,7 +39,7 @@ const Sidebar = ({ isOpen, onClose, onOpen, onSidebarClick }: SidebarProps) => {
               <span className="hidden group-hover:inline font-medium whitespace-nowrap">
                 {item.name}
               </span>
-            </a>
+            </Link>
           ))}
         </div>
       </div>
@@ -59,7 +57,7 @@ const Sidebar = ({ isOpen, onClose, onOpen, onSidebarClick }: SidebarProps) => {
         </div>
         <nav className="space-y-4">
           {navigationItems.map((item) => (
-            <a
+            <Link
               key={item.name}
               href={item.href}
               onClick={() => onSidebarClick(item.id)}
@@ -69,7 +67,7 @@ const Sidebar = ({ isOpen, onClose, onOpen, onSidebarClick }: SidebarProps) => {
             >
               <item.icon size={20} />
               <span className="font-medium">{item.name}</span>
-            </a>
+            </Link>
           ))}
         </nav>
       </div>

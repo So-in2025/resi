@@ -1,19 +1,16 @@
-// En: frontend/src/components/CultivationModule.tsx
-
 'use client';
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react'; // IMPORTANTE: Añadimos useSession
+import { useSession } from 'next-auth/react';
 import { 
   FaSeedling, FaCalculator, FaTools, FaBook, FaRobot,
-  FaCheckCircle, FaExclamationCircle, FaDollarSign, FaBoxes, FaLeaf, FaMicrochip, FaDownload, FaImage, FaTrashAlt, FaSun, FaLightbulb, FaSmile, FaMapMarkerAlt
+  FaCheckCircle, FaExclamationCircle, FaDollarSign, FaMicrochip, FaImage, FaTrashAlt
 } from "react-icons/fa";
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-
-// Componente para los botones de las pestañas (sin cambios)
-const TabButton = ({ isActive, onClick, icon: Icon, label }: any) => (
+// Componente para los botones de las pestañas
+const TabButton = ({ isActive, onClick, icon: Icon, label }: { isActive: boolean, onClick: () => void, icon: React.ElementType, label: string }) => (
   <button
     onClick={onClick}
     className={`flex-1 px-2 py-2 flex flex-col items-center justify-center space-y-1 transition-colors duration-200 
@@ -24,15 +21,13 @@ const TabButton = ({ isActive, onClick, icon: Icon, label }: any) => (
   </button>
 );
 
-// CORRECCIÓN 1: Definimos las props que este componente espera recibir.
-// Esto soluciona el error en `page.tsx`.
 interface CultivationModuleProps {
     initialMethod: string;
     userFinancialData: { supermarketSpending: number } | null;
 }
 
 const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModuleProps) => {
-  const { data: session } = useSession(); // CORRECCIÓN 2: Obtenemos la sesión del usuario.
+  const { data: session } = useSession();
   const [method, setMethod] = useState(initialMethod);
   const [activeTab, setActiveTab] = useState('planificacion');
 
@@ -62,12 +57,11 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
   const [loadingAiChat, setLoadingAiChat] = useState(false);
 
   // --- Estados Unificados para Calculadora de Ahorro ---
-  const [monthlyVegetableExpense, setMonthlyVegetableExpense] = useState('');
+  const [monthlyVegetableExpense, setMonthlyVegetableExpense] = useState<number | ''>('');
   const [projectedSavings, setProjectedSavings] = useState(0);
 
   // --- Función de Planificación por IA (CORREGIDA) ---
   const generateAiPlan = async () => {
-    // Verificación de seguridad
     if (!session?.user?.email) {
         toast.error('Debes iniciar sesión para pedir un plan a Resi.');
         return;
@@ -158,16 +152,16 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     }
   };
   
-  // --- Función Calculadora de Ahorro (Sin cambios) ---
+  // --- Función Calculadora de Ahorro (CORREGIDA) ---
   const calculateSavings = (e: React.FormEvent) => {
     e.preventDefault();
     if (monthlyVegetableExpense) {
-      const expense = parseFloat(monthlyVegetableExpense);
+      const expense = parseFloat(String(monthlyVegetableExpense));
       setProjectedSavings(expense * 0.25);
     }
   };
 
-  // --- Función Limpiar Chat (Sin cambios) ---
+  // --- Función Limpiar Chat ---
   const clearChat = () => {
     setAiQuestion('');
     setAiResponse('');
@@ -182,7 +176,6 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
         <p className="text-gray-300">Basado en tus finanzas, este mes gastaste <span className="font-bold text-green-400">${userFinancialData?.supermarketSpending.toLocaleString('es-AR') || '...'}</span> en supermercado. ¡Vamos a reducir ese número!</p>
       </div>
       
-      {/* Navegación por pestañas (Tu código original) */}
       <div className="flex justify-center flex-wrap gap-2 md:space-x-4 mb-8">
         <TabButton isActive={activeTab === 'planificacion'} onClick={() => setActiveTab('planificacion')} icon={FaSeedling} label="Planificación" />
         <TabButton isActive={activeTab === 'control'} onClick={() => setActiveTab('control')} icon={FaTools} label="Control" />
@@ -191,10 +184,8 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
         <TabButton isActive={activeTab === 'ia-chat'} onClick={() => setActiveTab('ia-chat')} icon={FaRobot} label="Asistencia IA" />
       </div>
 
-      {/* Contenido de la pestaña (Tu código original) */}
       <div className="bg-gray-800 p-6 md:p-8 rounded-lg shadow-lg min-h-[500px]">
         {activeTab === 'planificacion' && (
-          // (El JSX de esta pestaña es idéntico a tu archivo original)
           <div className="space-y-8">
             <h3 className="text-3xl font-bold text-green-400 text-center mb-6">
               {method === 'hydroponics' ? 'Planificación Hidropónica con IA' : 'Planificación de Huerto Orgánico con IA'}
@@ -332,7 +323,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
             <form onSubmit={calculateSavings} className="space-y-4">
               <div>
                 <label htmlFor="monthly-expense" className="block text-sm font-medium text-gray-400">Gasto mensual promedio en vegetales</label>
-                <input type="number" id="monthly-expense" className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white focus:ring-green-500 focus:border-green-500" placeholder="Ej: $20000" value={monthlyVegetableExpense} onChange={(e) => setMonthlyVegetableExpense(e.target.value)} required />
+                <input type="number" id="monthly-expense" className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white focus:ring-green-500 focus:border-green-500" placeholder="Ej: $20000" value={monthlyVegetableExpense} onChange={(e) => setMonthlyVegetableExpense(e.target.value === '' ? '' : parseFloat(e.target.value))} required />
               </div>
               <button type="submit" className="w-full bg-green-500 text-white font-bold py-2 px-4 rounded-md hover:bg-green-600 transition-colors duration-200 flex items-center justify-center"><FaCalculator className="mr-2" />Calcular Ahorro</button>
             </form>

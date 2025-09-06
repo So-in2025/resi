@@ -1,6 +1,5 @@
-// En: frontend/src/components/SavingGoals.tsx
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useSession } from 'next-auth/react';
 import { FaPlus, FaBullseye, FaLightbulb } from 'react-icons/fa';
@@ -30,6 +29,23 @@ export default function SavingGoals({ goalsData, onGoalUpdate }: SavingGoalsProp
     const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
     const [projection, setProjection] = useState<Projection | null>(null);
 
+    const handleSelectGoal = useCallback(async (goal: Goal) => {
+        if (!session?.user?.email) return;
+        setSelectedGoal(goal);
+        setProjection(null);
+        const toastId = toast.loading("Calculando proyección de Resi...");
+        try {
+            const response = await axios.get<Projection>(`http://localhost:8000/goals/projection/${goal.id}`, {
+                headers: { 'Authorization': `Bearer ${session.user.email}` }
+            });
+            setProjection(response.data);
+            toast.dismiss(toastId);
+        } catch (error) {
+            toast.error("No se pudo calcular la proyección.", { id: toastId });
+            console.error("Error al obtener la proyección:", error);
+        }
+    }, [session]);
+
     useEffect(() => {
         setGoals(goalsData);
         if (goalsData.length > 0 && (!selectedGoal || !goalsData.find(g => g.id === selectedGoal.id))) {
@@ -38,7 +54,7 @@ export default function SavingGoals({ goalsData, onGoalUpdate }: SavingGoalsProp
             setSelectedGoal(null);
             setProjection(null);
         }
-    }, [goalsData]);
+    }, [goalsData, selectedGoal, handleSelectGoal]);
 
     const handleCreateGoal = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -55,23 +71,6 @@ export default function SavingGoals({ goalsData, onGoalUpdate }: SavingGoalsProp
             onGoalUpdate();
         } catch (error) {
             toast.error("Error al crear la meta.", { id: toastId });
-        }
-    };
-
-    const handleSelectGoal = async (goal: Goal) => {
-        if (!session?.user?.email) return;
-        setSelectedGoal(goal);
-        setProjection(null);
-        const toastId = toast.loading("Calculando proyección de Resi...");
-        try {
-            const response = await axios.get(`http://localhost:8000/goals/projection/${goal.id}`, {
-                headers: { 'Authorization': `Bearer ${session.user.email}` }
-            });
-            setProjection(response.data);
-            toast.dismiss(toastId);
-        } catch (error) {
-            toast.error("No se pudo calcular la proyección.", { id: toastId });
-            console.error("Error al obtener la proyección:", error);
         }
     };
     

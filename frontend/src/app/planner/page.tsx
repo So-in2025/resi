@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
-import { useSession, signIn } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import InfoTooltip from '@/components/InfoTooltip';
 import FloatingActionButton from '@/components/FloatingActionButton';
@@ -235,7 +235,6 @@ export default function PlannerPage() {
                     })}
                 </div>
             </div>
-
         </main>
         
         {/* Contenedor flotante para el botón de añadir gastos */}

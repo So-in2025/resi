@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback } from 'react';
 
 const consejos = [
   "Recordá registrar hasta el gasto más chiquito. ¡Esos son los que más suman a fin de mes!",
@@ -53,11 +53,8 @@ export const useResiVoice = () => {
       const googleSpanishVoices = voices.filter(voice => voice.lang.startsWith('es') && voice.name.includes('Google'));
       
       if (googleSpanishVoices.length > 1) {
-        // Seleccionamos la segunda voz si hay más de una,
-        // que suele ser la voz femenina.
         utterance.voice = googleSpanishVoices[1];
       } else if (googleSpanishVoices.length > 0) {
-        // Si no, usamos la primera que encontremos de Google.
         utterance.voice = googleSpanishVoices[0];
       }
       
@@ -71,11 +68,9 @@ export const useResiVoice = () => {
       }
     };
     
-    // Si las voces ya están cargadas, configúralas de inmediato.
     if (window.speechSynthesis.getVoices().length > 0) {
       setVoice();
     } else {
-      // De lo contrario, espera a que carguen y luego configúralas.
       window.speechSynthesis.onvoiceschanged = setVoice;
     }
   }, []);

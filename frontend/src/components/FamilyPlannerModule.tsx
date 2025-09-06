@@ -22,6 +22,22 @@ const StepIndicator = ({ currentStep, totalSteps }: { currentStep: number, total
   </div>
 );
 
+// Tipos de datos para el plan de la IA
+interface MealPlanItem {
+    day: string;
+    meal: string;
+}
+interface LeisureSuggestion {
+    activity: string;
+    cost: string;
+    description: string;
+}
+interface AiPlan {
+    mealPlan: MealPlanItem[];
+    budgetSuggestion: string;
+    leisureSuggestion: LeisureSuggestion;
+}
+
 // --- COMPONENTE PRINCIPAL ---
 
 export default function FamilyPlannerModule() {
@@ -38,7 +54,7 @@ export default function FamilyPlannerModule() {
 
   // Estados para el resultado de la IA
   const [isLoading, setIsLoading] = useState(false);
-  const [aiPlan, setAiPlan] = useState<any>(null);
+  const [aiPlan, setAiPlan] = useState<AiPlan | null>(null);
 
   // --- MANEJADORES DE DATOS ---
 
@@ -65,7 +81,7 @@ export default function FamilyPlannerModule() {
   const handleBack = () => setStep(prev => Math.max(prev - 1, 1));
 
   const generateFamilyPlan = async () => {
-    if (!session) {
+    if (!session?.user?.email) {
       toast.error("Debes iniciar sesión para generar un plan.");
       return;
     }
@@ -82,7 +98,7 @@ export default function FamilyPlannerModule() {
 
     try {
       const response = await axios.post('http://localhost:8000/family-plan/generate', planRequest, {
-        headers: { 'Authorization': `Bearer ${session.user?.email}` }
+        headers: { 'Authorization': `Bearer ${session.user.email}` }
       });
       setAiPlan(response.data);
       toast.success("¡Mapa de Ruta Familiar generado!", { id: toastId });
@@ -165,7 +181,7 @@ export default function FamilyPlannerModule() {
                         <div className="bg-gray-700 p-4 rounded-lg">
                             <h4 className="font-bold text-white text-lg mb-2">🍴 Menú Semanal Sugerido</h4>
                             <ul className="list-disc list-inside text-gray-300 space-y-1">
-                                {aiPlan.mealPlan.map((item: any) => <li key={item.day}><span className="font-semibold">{item.day}:</span> {item.meal}</li>)}
+                                {aiPlan.mealPlan.map(item => <li key={item.day}><span className="font-semibold">{item.day}:</span> {item.meal}</li>)}
                             </ul>
                         </div>
                         <div className="bg-gray-700 p-4 rounded-lg">
