@@ -1,0 +1,13 @@
+# Archivos de Next.js
+.next
+out
+.env.local
+
+# Dependencias de Node.js
+node_modules
+
+# Dependencias de Python (entorno virtual)
+venv
+
+# Otros archivos de sistema operativo
+.DS_Store
