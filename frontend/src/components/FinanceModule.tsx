@@ -11,7 +11,15 @@ import { useSession, signIn } from 'next-auth/react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const TabButton = ({ isActive, onClick, children, icon: Icon }: { isActive: boolean, onClick: () => void, children: React.ReactNode, icon: React.ElementType }) => (
+// CORRECCIÓN: Tipado estricto para las props.
+interface TabButtonProps {
+    isActive: boolean;
+    onClick: () => void;
+    children: React.ReactNode;
+    icon: React.ElementType;
+}
+
+const TabButton = ({ isActive, onClick, children, icon: Icon }: TabButtonProps) => (
   <button
     onClick={onClick}
     className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 py-3 font-semibold rounded-t-lg transition-colors text-sm md:text-base ${
@@ -23,7 +31,16 @@ const TabButton = ({ isActive, onClick, children, icon: Icon }: { isActive: bool
   </button>
 );
 
-const ResilienceSummary = ({ summary }: { summary: any }) => (
+// CORRECCIÓN: Tipado estricto para las props.
+interface ResilienceSummaryProps {
+    summary: {
+        title: string;
+        message: string;
+        suggestion: string;
+    };
+}
+
+const ResilienceSummary = ({ summary }: ResilienceSummaryProps) => (
     <div className="bg-gray-700 p-6 rounded-lg mb-6 border-l-4 border-green-400">
         <h3 className="text-xl font-bold text-white flex items-center gap-2"><FaRobot /> Diagnóstico de Resi: <span className="text-green-400">{summary.title}</span></h3>
         <p className="text-gray-300 mt-2">{summary.message}</p>
@@ -32,10 +49,15 @@ const ResilienceSummary = ({ summary }: { summary: any }) => (
 );
 
 export interface FinancialData {
-  resilienceSummary: any;
-  budget: any;
-  expenses: any[];
-  goals: any[];
+  resilienceSummary: {
+    title: string;
+    message: string;
+    suggestion: string;
+    supermarket_spending: number;
+  };
+  budget: any; // Mantengo 'any' aquí porque el tipo no está definido en el archivo.
+  expenses: any[]; // Mantengo 'any[]' aquí por la misma razón.
+  goals: any[]; // Mantengo 'any[]' aquí por la misma razón.
 }
 
 interface FinanceModuleProps {
@@ -64,7 +86,7 @@ export default function FinanceModule({ onDataLoaded }: FinanceModuleProps) {
         axios.get('http://localhost:8000/expenses', apiHeaders),
         axios.get('http://localhost:8000/goals', apiHeaders),
       ]);
-      const allData = {
+      const allData: FinancialData = {
         resilienceSummary: summaryRes.data,
         budget: budgetRes.data,
         expenses: expensesRes.data,
@@ -80,6 +102,7 @@ export default function FinanceModule({ onDataLoaded }: FinanceModuleProps) {
       setIsLoading(false);
     }
   // CORRECCIÓN DEFINITIVA: Se elimina `onDataLoaded` del array de dependencias para romper el bucle infinito.
+  // Pero se añade `session` y `status` para evitar la advertencia y asegurar que la función se ejecuta cuando la sesión cambia.
   }, [session, status]);
 
   useEffect(() => {

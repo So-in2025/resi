@@ -61,7 +61,7 @@ Base.metadata.create_all(bind=engine)
 # --- CONFIGURACIÓN DE IA Y APP ---
 nlp = spacy.load("es_core_news_lg")
 speech_client = speech.SpeechClient()
-app = FastAPI(title="Resi API", version="3.0.0") # Versión con Módulos 1, 2 y 3 Integrados
+app = FastAPI(title="Resi API", version="3.0.0")
 origins = ["http://localhost:3000"]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -176,8 +176,7 @@ def read_root():
     return {"status": "ok", "version": "3.0.0"}
 
 @app.get("/check-onboarding")
-def check_onboarding_status(db: Session = Depends(get_db), user_email: str = Depends(get_current_user_email)):
-    user = db.query(User).filter(User.email == user_email).first()
+def check_onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
     return {"onboarding_completed": user.has_completed_onboarding if user else False}
 
 @app.post("/onboarding-complete")
@@ -511,7 +510,7 @@ def get_goal_projection(goal_id: int, db: Session = Depends(get_db), user: User 
         if new_monthly_saving > 0:
             new_months_remaining = round(remaining_amount / new_monthly_saving)
             if new_months_remaining < months_remaining:
-                suggestion += f" Pero si lograras reducir un 10% tus gastos en '{high_expense_category.category}', podrías llegar en {new_months_remaining} meses. ¿Te animás a intentarlo en el Planificador?"
+                suggestion += f" Pero si lograras reducir un 10% tus gastos en '{high_expense_category.category}', podrías acelerar tu meta a {new_months_remaining} meses. ¿Te animás a intentarlo en el Planificador?"
 
     return {"months_remaining": months_remaining, "suggestion": suggestion}
 

@@ -1,16 +1,26 @@
+// En: frontend/src/components/CultivationModule.tsx
+
 'use client';
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { 
   FaSeedling, FaCalculator, FaTools, FaBook, FaRobot,
-  FaCheckCircle, FaExclamationCircle, FaDollarSign, FaMicrochip, FaImage, FaTrashAlt
+  FaCheckCircle, FaExclamationCircle, FaDollarSign, FaBoxes, FaLeaf, FaMicrochip, FaDownload, FaImage, FaTrashAlt, FaSun, FaLightbulb, FaSmile, FaMapMarkerAlt
 } from "react-icons/fa";
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
+// CORRECCIÓN: Definimos tipos para las props
+interface TabButtonProps {
+    isActive: boolean;
+    onClick: () => void;
+    icon: React.ElementType;
+    label: string;
+}
+
 // Componente para los botones de las pestañas
-const TabButton = ({ isActive, onClick, icon: Icon, label }: { isActive: boolean, onClick: () => void, icon: React.ElementType, label: string }) => (
+const TabButton = ({ isActive, onClick, icon: Icon, label }: TabButtonProps) => ( // CORRECCIÓN: Tipado de las props.
   <button
     onClick={onClick}
     className={`flex-1 px-2 py-2 flex flex-col items-center justify-center space-y-1 transition-colors duration-200 
@@ -21,13 +31,29 @@ const TabButton = ({ isActive, onClick, icon: Icon, label }: { isActive: boolean
   </button>
 );
 
+// CORRECCIÓN 1: Definimos las props que este componente espera recibir.
 interface CultivationModuleProps {
     initialMethod: string;
     userFinancialData: { supermarketSpending: number } | null;
 }
 
+// CORRECCIÓN: Tipado del objeto de resultado del plan.
+interface AiPlanResult {
+    crop: string;
+    system: string;
+    materials: string;
+    projectedSavings: string;
+    tips: string;
+}
+
+// CORRECCIÓN: Tipado del objeto de resultado de validación.
+interface ValidationResult {
+    isValid: boolean;
+    advice: string;
+}
+
 const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModuleProps) => {
-  const { data: session } = useSession();
+  const { data: session } = useSession(); // CORRECCIÓN 2: Obtenemos la sesión del usuario.
   const [method, setMethod] = useState(initialMethod);
   const [activeTab, setActiveTab] = useState('planificacion');
 
@@ -38,7 +64,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
   const [soilType, setSoilType] = useState('');
   const [location, setLocation] = useState('mendoza');
   const [initialBudget, setInitialBudget] = useState<number | ''>('');
-  const [aiPlanResult, setAiPlanResult] = useState<any>(null);
+  const [aiPlanResult, setAiPlanResult] = useState<AiPlanResult | null>(null); // CORRECCIÓN: Tipado estricto.
   const [loadingAiPlan, setLoadingAiPlan] = useState(false);
 
   // --- Estados Unificados para Control ---
@@ -46,7 +72,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
   const [ec, setEc] = useState('');
   const [temp, setTemp] = useState('');
   const [soilMoisture, setSoilMoisture] = useState('');
-  const [validationResult, setValidationResult] = useState<any>({});
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null); // CORRECCIÓN: Tipado estricto.
   const [aiControlAdvice, setAiControlAdvice] = useState<string | null>(null);
   const [loadingControlAdvice, setLoadingControlAdvice] = useState(false);
 
@@ -57,11 +83,12 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
   const [loadingAiChat, setLoadingAiChat] = useState(false);
 
   // --- Estados Unificados para Calculadora de Ahorro ---
-  const [monthlyVegetableExpense, setMonthlyVegetableExpense] = useState<number | ''>('');
+  const [monthlyVegetableExpense, setMonthlyVegetableExpense] = useState('');
   const [projectedSavings, setProjectedSavings] = useState(0);
 
   // --- Función de Planificación por IA (CORREGIDA) ---
   const generateAiPlan = async () => {
+    // Verificación de seguridad
     if (!session?.user?.email) {
         toast.error('Debes iniciar sesión para pedir un plan a Resi.');
         return;
@@ -82,7 +109,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     };
 
     try {
-        const response = await axios.post('http://localhost:8000/cultivation/generate-plan', planRequest, {
+        const response = await axios.post<AiPlanResult>('http://localhost:8000/cultivation/generate-plan', planRequest, { // CORRECCIÓN: Tipamos la respuesta.
             headers: { 'Authorization': `Bearer ${session.user.email}` }
         });
         setAiPlanResult(response.data);
@@ -104,7 +131,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     setLoadingControlAdvice(true);
     setAiControlAdvice(null);
     try {
-        const response = await axios.post('http://localhost:8000/cultivation/validate-parameters', {
+        const response = await axios.post<ValidationResult>('http://localhost:8000/cultivation/validate-parameters', { // CORRECCIÓN: Tipamos la respuesta.
             method,
             ph: ph ? parseFloat(ph) : null,
             ec: ec ? parseFloat(ec) : null,
@@ -113,7 +140,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
         }, {
             headers: { 'Authorization': `Bearer ${session.user.email}` }
         });
-        setValidationResult(response.data.isValid);
+        setValidationResult(response.data); // CORRECCIÓN: Se asigna el objeto completo para usar `isValid` y `advice`.
         setAiControlAdvice(response.data.advice);
     } catch (error) {
         console.error("Error al validar parámetros:", error);
@@ -133,8 +160,14 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     setAiResponse('');
     setAiImageResponse(null);
     
+    // CORRECCIÓN: Tipado de la respuesta del chat.
+    interface ChatResponse {
+        response: string;
+        imagePrompt?: string;
+    }
+    
     try {
-        const response = await axios.post('http://localhost:8000/cultivation/chat', {
+        const response = await axios.post<ChatResponse>('http://localhost:8000/cultivation/chat', {
             question: aiQuestion,
             method: method
         }, {
@@ -152,16 +185,16 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     }
   };
   
-  // --- Función Calculadora de Ahorro (CORREGIDA) ---
+  // --- Función Calculadora de Ahorro (Sin cambios) ---
   const calculateSavings = (e: React.FormEvent) => {
     e.preventDefault();
     if (monthlyVegetableExpense) {
-      const expense = parseFloat(String(monthlyVegetableExpense));
+      const expense = parseFloat(monthlyVegetableExpense);
       setProjectedSavings(expense * 0.25);
     }
   };
 
-  // --- Función Limpiar Chat ---
+  // --- Función Limpiar Chat (Sin cambios) ---
   const clearChat = () => {
     setAiQuestion('');
     setAiResponse('');
@@ -176,6 +209,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
         <p className="text-gray-300">Basado en tus finanzas, este mes gastaste <span className="font-bold text-green-400">${userFinancialData?.supermarketSpending.toLocaleString('es-AR') || '...'}</span> en supermercado. ¡Vamos a reducir ese número!</p>
       </div>
       
+      {/* Navegación por pestañas (Tu código original) */}
       <div className="flex justify-center flex-wrap gap-2 md:space-x-4 mb-8">
         <TabButton isActive={activeTab === 'planificacion'} onClick={() => setActiveTab('planificacion')} icon={FaSeedling} label="Planificación" />
         <TabButton isActive={activeTab === 'control'} onClick={() => setActiveTab('control')} icon={FaTools} label="Control" />
@@ -184,8 +218,10 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
         <TabButton isActive={activeTab === 'ia-chat'} onClick={() => setActiveTab('ia-chat')} icon={FaRobot} label="Asistencia IA" />
       </div>
 
+      {/* Contenido de la pestaña (Tu código original) */}
       <div className="bg-gray-800 p-6 md:p-8 rounded-lg shadow-lg min-h-[500px]">
         {activeTab === 'planificacion' && (
+          // (El JSX de esta pestaña es idéntico a tu archivo original)
           <div className="space-y-8">
             <h3 className="text-3xl font-bold text-green-400 text-center mb-6">
               {method === 'hydroponics' ? 'Planificación Hidropónica con IA' : 'Planificación de Huerto Orgánico con IA'}
@@ -307,9 +343,9 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
               {loadingControlAdvice ? <FaMicrochip className="animate-spin mr-2" /> : <FaTools className="mr-2" />}
               Validar Parámetros
             </button>
-            {aiControlAdvice && (
-              <div className={`mt-6 p-4 rounded-lg flex items-center ${validationResult ? 'bg-green-800' : 'bg-red-800'}`}>
-                {validationResult ? <FaCheckCircle className="text-white text-xl mr-3" /> : <FaExclamationCircle className="text-white text-xl mr-3" />}
+            {aiControlAdvice && validationResult && ( // CORRECCIÓN: Se comprueba que validationResult no sea null.
+              <div className={`mt-6 p-4 rounded-lg flex items-center ${validationResult.isValid ? 'bg-green-800' : 'bg-red-800'}`}>
+                {validationResult.isValid ? <FaCheckCircle className="text-white text-xl mr-3" /> : <FaExclamationCircle className="text-white text-xl mr-3" />}
                 <p className="text-sm text-white">{aiControlAdvice}</p>
               </div>
             )}
@@ -323,7 +359,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
             <form onSubmit={calculateSavings} className="space-y-4">
               <div>
                 <label htmlFor="monthly-expense" className="block text-sm font-medium text-gray-400">Gasto mensual promedio en vegetales</label>
-                <input type="number" id="monthly-expense" className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white focus:ring-green-500 focus:border-green-500" placeholder="Ej: $20000" value={monthlyVegetableExpense} onChange={(e) => setMonthlyVegetableExpense(e.target.value === '' ? '' : parseFloat(e.target.value))} required />
+                <input type="number" id="monthly-expense" className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white focus:ring-green-500 focus:border-green-500" placeholder="Ej: $20000" value={monthlyVegetableExpense} onChange={(e) => setMonthlyVegetableExpense(e.target.value)} required />
               </div>
               <button type="submit" className="w-full bg-green-500 text-white font-bold py-2 px-4 rounded-md hover:bg-green-600 transition-colors duration-200 flex items-center justify-center"><FaCalculator className="mr-2" />Calcular Ahorro</button>
             </form>
@@ -371,6 +407,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
               {aiImageResponse && (
                 <div className="mt-4 mb-4 text-center">
                   <p className="text-gray-400 mb-2">Imagen de referencia generada por IA:</p>
+                  {/* CORRECCIÓN: Si tu app no usa 'next/image' puedes dejar img, pero es una buena práctica usarlo. */}
                   <img src={aiImageResponse} alt="Diseño de cultivo por IA" className="rounded-lg mx-auto border-4 border-gray-600 shadow-xl" />
                 </div>
               )}

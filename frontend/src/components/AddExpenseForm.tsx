@@ -1,17 +1,9 @@
 'use client';
 
-import { useState, useRef, FormEvent, ChangeEvent } from 'react';
+import { useState, useRef } from 'react';
 import axios from 'axios';
 import MicRecorder from 'mic-recorder-to-mp3';
 import { useSession } from 'next-auth/react';
-import toast from 'react-hot-toast';
-
-// Define a simple type for the MicRecorder instance.
-// This tells TypeScript what methods and properties the class instance will have.
-interface MicRecorderInstance {
-  start: () => Promise<void>;
-  stop: () => { getMp3: () => Promise<[number[], Blob]>; };
-}
 
 interface AddExpenseFormProps {
   onExpenseAdded: () => void;
@@ -24,28 +16,21 @@ export default function AddExpenseForm({ onExpenseAdded }: AddExpenseFormProps) 
   const [textInput, setTextInput] = useState('');
   const [feedback, setFeedback] = useState('');
 
-  // The useRef hook now correctly holds a MicRecorder instance or null.
-  const recorder = useRef<MicRecorderInstance | null>(null);
+  const recorder = useRef<any>(null);
 
   const startRecording = () => {
     if (!session) {
-      setFeedback('Inicia sesión para grabar un gasto.');
-      return;
+        setFeedback('Inicia sesión para grabar un gasto.');
+        return;
     }
-    // Correctly create a new instance and assign it to the ref's current property.
     recorder.current = new MicRecorder({ bitRate: 128 });
-    
-    // Check if the instance exists before calling methods on it.
-    if (recorder.current) {
-        recorder.current.start().then(() => {
-          setIsRecording(true);
-          setFeedback('Grabando... Presiona de nuevo para detener.');
-        }).catch((e: Error) => console.error(e));
-    }
+    recorder.current.start().then(() => {
+      setIsRecording(true);
+      setFeedback('Grabando... Presiona de nuevo para detener.');
+    }).catch((e: any) => console.error(e));
   };
 
   const stopRecording = () => {
-    // Check if the instance exists before calling methods on it.
     if (!recorder.current) return;
 
     recorder.current.stop().getMp3().then(async ([buffer, blob]: [number[], Blob]) => {
@@ -53,10 +38,11 @@ export default function AddExpenseForm({ onExpenseAdded }: AddExpenseFormProps) 
       setIsLoading(true);
       setFeedback('Procesando audio...');
       
+      // LA GUARDIA DE SEGURIDAD DEFINITIVA
       if (!session?.user?.email) {
-        setFeedback("Error: No se encontró email de usuario en la sesión.");
-        setIsLoading(false);
-        return;
+          setFeedback("Error: No se encontró email de usuario en la sesión.");
+          setIsLoading(false);
+          return;
       }
 
       const audioFile = new File([blob], "audio.mp3", { type: blob.type });
@@ -67,38 +53,39 @@ export default function AddExpenseForm({ onExpenseAdded }: AddExpenseFormProps) 
         const response = await axios.post('http://localhost:8000/transcribe', formData, {
           headers: { 
             'Content-Type': 'multipart/form-data',
-            'Authorization': `Bearer ${session.user.email}`
+            'Authorization': `Bearer ${session.user.email}` // Ahora es 100% seguro
           }
         });
         handleResponse(response.data);
-      } catch (error: any) {
+      } catch (error) {
         handleError(error);
       } finally {
         setIsLoading(false);
       }
-    }).catch((e: Error) => console.error(e));
+    }).catch((e: any) => console.error(e));
   };
   
-  const handleTextSubmit = async (e: FormEvent) => {
+  const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (textInput.trim() === '') return;
 
     setIsLoading(true);
     setFeedback('Registrando gasto...');
 
+    // LA GUARDIA DE SEGURIDAD DEFINITIVA
     if (!session?.user?.email) {
-      setFeedback("Error: No se encontró email de usuario en la sesión.");
-      setIsLoading(false);
-      return;
+        setFeedback("Error: No se encontró email de usuario en la sesión.");
+        setIsLoading(false);
+        return;
     }
 
     try {
       const response = await axios.post('http://localhost:8000/process-text', 
         { text: textInput },
-        { headers: { 'Authorization': `Bearer ${session.user.email}` } }
+        { headers: { 'Authorization': `Bearer ${session.user.email}` } } // Ahora es 100% seguro
       );
       handleResponse(response.data);
-    } catch (error: any) {
+    } catch (error) {
       handleError(error);
     } finally {
       setIsLoading(false);
@@ -158,7 +145,7 @@ export default function AddExpenseForm({ onExpenseAdded }: AddExpenseFormProps) 
         <input
           type="text"
           value={textInput}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setTextInput(e.target.value)}
+          onChange={(e) => setTextInput(e.target.value)}
           placeholder="Ej: 5000 pesos en el supermercado"
           className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
           disabled={isLoading || !session}

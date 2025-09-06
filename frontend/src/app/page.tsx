@@ -1,21 +1,23 @@
+// En: frontend/src/app/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { useSession } from 'next-auth/react';
-import toast from 'react-hot-toast';
-import Sidebar from "@/components/Sidebar";
-import Header from "@/components/Header";
-import SectionHeader from "@/components/SectionHeader";
-import FloatingActionButton from '@/components/FloatingActionButton';
-import Modal from '@/components/Modal';
-import AddExpenseForm from '@/components/AddExpenseForm';
 import Accordion from "@/components/Accordion";
-import OnboardingFlow from "@/components/OnboardingFlow";
 import AnimatedMessage from "@/components/AnimatedMessage";
+import FloatingActionButton from "@/components/FloatingActionButton";
+import Modal from "@/components/Modal";
+import AddExpenseForm from "@/components/AddExpenseForm";
+import { useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
+import Sidebar from "@/components/Sidebar";
+import VoiceChat from "@/components/VoiceChat";
 import CultivationModule from "@/components/CultivationModule";
+import OnboardingFlow from "@/components/OnboardingFlow";
+import Header from "@/components/Header";
+import axios from "axios";
+import FinanceModule from '@/components/FinanceModule'; 
+import FamilyPlannerModule from "@/components/FamilyPlannerModule";
 
-// Componente HeroSection
+// --- SUBCOMPONENTES ---
 const HeroSection = () => (
   <div className="text-center mb-12 w-full max-w-4xl">
     <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4">
@@ -27,106 +29,87 @@ const HeroSection = () => (
   </div>
 );
 
-// Aquí se corrige el error de "unescaped entities"
-const AnimatedMessageComponent = ({ messages, finalMessage }: { messages: string[], finalMessage: string }) => {
-    const [index, setIndex] = useState(0);
-    const [showFinalMessage, setShowFinalMessage] = useState(false);
-
-    useEffect(() => {
-        if (showFinalMessage) return;
-        const timer = setTimeout(() => {
-            if (index === messages.length - 1) {
-                setShowFinalMessage(true);
-            }
-            setIndex((prevIndex) => (prevIndex + 1) % messages.length);
-        }, 6000);
-        return () => clearTimeout(timer);
-    }, [index, messages.length, showFinalMessage]);
-
-    const renderMessageContent = (msgIndex: number) => {
-        const message = messages[msgIndex];
-        return (
-            <p className="text-xl md:text-2xl text-gray-200 leading-relaxed italic">
-                {message.replace(/Ese estrés es agotador\. Y te está quitando la vida\./g, '<strong className="text-red-400">Ese estrés es agotador. Y te está quitando la vida.</strong>')
-                        .replace(/no es tu culpa\./g, '<strong className="text-white">no es tu culpa.</strong>')
-                        .replace(/encender la luz\./g, '<span className="text-green-400 font-semibold">encender la luz.</span>')
-                        .replace(/mapa real de tu dinero\./g, '<strong className="text-white">mapa real de tu dinero.</strong>')
-                        .replace(/saber dónde estás parado\./g, '<strong className="text-white">saber dónde estás parado.</strong>')}
-            </p>
-        );
-    };
-
-    return (
-        <div className="w-full max-w-3xl h-48 md:h-40 flex items-center justify-center p-6 bg-gray-800 rounded-lg shadow-xl text-center">
-            {showFinalMessage ? (
-                <p className="text-4xl lg:text-5xl font-extrabold leading-tight">
-                    {finalMessage}
-                </p>
-            ) : (
-                <div dangerouslySetInnerHTML={{ __html: renderMessageContent(index) }} />
-            )}
-        </div>
-    );
-};
-
-
+// --- COMPONENTE PRINCIPAL DE LA PÁGINA ---
 export default function HomePage() {
+  // --- ESTADOS PRINCIPALES DEL ORQUESTADOR ---
   const { data: session, status } = useSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [openAccordionId, setOpenAccordionId] = useState<string | null>('mis-finanzas');
   const [selectedGardeningMethod, setSelectedGardeningMethod] = useState('hydroponics');
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
-  const [refreshHeader, setRefreshHeader] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // ESTADO CLAVE: Guarda los datos que se compartirán entre módulos.
+  // FinanceModule nos dará esta información, y nosotros se la pasaremos a CultivationModule.
+  const [sharedFinancialData, setSharedFinancialData] = useState<{ supermarketSpending: number } | null>(null);
+
+  // --- EFECTOS Y MANEJADORES DE EVENTOS ---
+
+  // Efecto para verificar el estado de onboarding del usuario al cargar o cambiar la sesión.
   useEffect(() => {
-    const fetchOnboardingStatus = async () => {
-      if (status === 'authenticated' && session?.user?.email) {
+    const checkOnboardingStatus = async () => {
+      if (session?.user?.email) {
         try {
-          const response = await axios.get(`http://localhost:8000/dashboard-summary`, {
-            headers: { 'Authorization': `Bearer ${session.user.email}` }
+          const response = await axios.get('http://localhost:8000/check-onboarding', {
+            headers: { 'Authorization': `Bearer ${session.user.email}` },
           });
-          setHasCompletedOnboarding(response.data.has_completed_onboarding);
-        } catch (error) {
-          console.error("Error al obtener el estado de onboarding:", error);
-          setHasCompletedOnboarding(false);
+          setHasCompletedOnboarding(response.data.onboarding_completed);
+        } catch (error) { 
+          console.error("Error al chequear el estado de onboarding:", error);
         }
-      } else {
-        setHasCompletedOnboarding(false);
       }
+      setIsLoading(false);
     };
-    fetchOnboardingStatus();
-  }, [status, session]);
 
+    if (status === 'authenticated') {
+      checkOnboardingStatus();
+    } else if (status === 'unauthenticated') {
+      setHasCompletedOnboarding(false);
+      setIsLoading(false);
+    }
+  }, [session, status]);
+  
+  // Manejador para el evento de 'gasto añadido', cierra el modal.
   const handleExpenseAdded = () => {
     setIsModalOpen(false);
+    // Podríamos agregar aquí una lógica para forzar la recarga de datos del FinanceModule
   };
 
+  // Manejador para abrir/cerrar los acordeones de los módulos.
   const handleAccordionToggle = (id: string) => {
     setOpenAccordionId(openAccordionId === id ? null : id);
   };
   
+  // Manejador para la navegación desde la Sidebar.
   const handleSidebarClick = (id: string) => {
-    if (openAccordionId === id) {
-      return;
-    }
+    if (openAccordionId === id) return; // No hacer nada si ya está abierto
     setOpenAccordionId(id);
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   
+  // Manejador para cuando el usuario completa el flujo de bienvenida.
   const handleOnboardingComplete = () => {
     setHasCompletedOnboarding(true);
-    setOpenAccordionId(null);
-    setRefreshHeader(prev => prev + 1);
+    setOpenAccordionId('mis-finanzas'); // Llevamos al usuario directo al módulo de finanzas
+  };
+
+  // FUNCIÓN PUENTE: Esta función se pasa como prop a FinanceModule.
+  // Cuando FinanceModule termina de cargar sus datos, llama a esta función
+  // para "subir" la información relevante al orquestador (esta página).
+  const handleFinancialDataLoaded = (data: { supermarketSpending: number }) => {
+    setSharedFinancialData(data);
   };
 
   const moduleTitle = `Módulo 2: Tu ${selectedGardeningMethod === 'hydroponics' ? 'Sistema Hidropónico' : 'Huerto Orgánico'}`;
   
+  // --- RENDERIZADO DEL COMPONENTE ---
   return (
     <>
-      <Header refreshTrigger={refreshHeader} />
+      <Header />
       <div className="flex">
-        <div className="fixed top-0 left-0 h-screen md:pt-16">
+        {/* Sidebar fija en el borde izquierdo */}
+        <div className="fixed top-0 left-0 h-screen md:pt-16 z-40">
           <Sidebar 
             isOpen={isSidebarOpen} 
             onOpen={() => setIsSidebarOpen(true)} 
@@ -135,10 +118,11 @@ export default function HomePage() {
           />
         </div>
         
-        <main className="flex-1 flex flex-col items-center p-8 bg-gray-900 text-white font-sans md:ml-20 pt-16">
+        {/* Contenido Principal de la Página */}
+        <main className="flex-1 flex flex-col items-center p-4 md:p-8 bg-gray-900 text-white font-sans md:ml-20 pt-16">
           <HeroSection />
           
-          <AnimatedMessageComponent messages={[
+          <AnimatedMessage messages={[
               "Mi primer objetivo es aliviar ese estrés mental que nunca termina: contar los días para cobrar y sufrir por los números que no dan.",
               "Pero quiero que sepas algo: no es tu culpa. El desorden se alimenta de la falta de claridad, y nuestro primer paso juntos será encender la luz.",
               "No te voy a pedir cosas imposibles, solo que me cuentes tus gastos. Juntos, haremos un mapa real de tu dinero.",
@@ -146,16 +130,13 @@ export default function HomePage() {
               "La paz mental de saber que, paso a paso, estás construyendo el control sobre tu futuro."
           ]} finalMessage="¡Bienvenido al cambio!" />
 
-          <div id="mis-finanzas" className="mt-12 w-full max-w-4xl scroll-mt-32">
-            <SectionHeader
-              title="Módulo 1: Primeros Pasos"
-              subtitle="Establece tu presupuesto inicial."
-            />
+          {/* Módulo de Onboarding / Primeros Pasos */}
+          <div id="primeros-pasos" className="mt-12 w-full max-w-4xl scroll-mt-20">
             <Accordion 
-              id="mis-finanzas"
+              id="primeros-pasos"
               title="Primeros Pasos" 
-              isOpen={openAccordionId === 'mis-finanzas'}
-              onToggle={() => handleAccordionToggle('mis-finanzas')}
+              isOpen={openAccordionId === 'primeros-pasos'}
+              onToggle={() => handleAccordionToggle('primeros-pasos')}
             >
               <OnboardingFlow 
                   onboardingCompleted={hasCompletedOnboarding}
@@ -163,48 +144,80 @@ export default function HomePage() {
               />
             </Accordion>
           </div>
-          
-          <div id="modulo-cultivo" className="mt-12 w-full max-w-4xl scroll-mt-32">
-            <SectionHeader
-              title={moduleTitle}
-              subtitle="Elige tu método de cultivo para sembrar tu futuro."
-            />
+
+          {/* Módulo Financiero */}
+          <div id="mis-finanzas" className="mt-12 w-full max-w-4xl scroll-mt-20">
+            <Accordion 
+              id="mis-finanzas"
+              title="Módulo 1: Tu Centro de Comando Financiero"
+              isOpen={openAccordionId === 'mis-finanzas'}
+              onToggle={() => handleAccordionToggle('mis-finanzas')}
+            >
+              {session && !hasCompletedOnboarding && !isLoading ? (
+                <div className="p-6 text-center text-yellow-300 bg-yellow-900/20 rounded-lg">
+                  <p>Por favor, completá los "Primeros Pasos" para activar este módulo.</p>
+                </div>
+              ) : (
+                // Aquí ocurre la magia: Le pasamos la función "puente" al Módulo Financiero.
+                <FinanceModule onDataLoaded={handleFinancialDataLoaded} />
+              )}
+            </Accordion>
+          </div>
+
+          {/* Módulo de Cultivo */}
+          <div id="modulo-cultivo" className="mt-12 w-full max-w-4xl scroll-mt-20">
             <Accordion 
               id="modulo-cultivo"
               title={moduleTitle}
               isOpen={openAccordionId === 'modulo-cultivo'}
               onToggle={() => handleAccordionToggle('modulo-cultivo')}
             >
-              <div className="text-center mb-4">
-                  <div className="flex justify-center space-x-4">
+              <div className="text-center mb-6">
+                  <div className="inline-flex rounded-md shadow-sm bg-gray-900" role="group">
                       <button 
                           onClick={() => setSelectedGardeningMethod('hydroponics')}
-                          className={`px-6 py-2 rounded-md font-bold transition-colors duration-200
-                              ${selectedGardeningMethod === 'hydroponics' ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                          className={`px-6 py-2 text-sm font-medium rounded-l-lg border border-gray-600 transition-colors duration-200 ${selectedGardeningMethod === 'hydroponics' ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
                       >
                           Hidroponía
                       </button>
                       <button 
                           onClick={() => setSelectedGardeningMethod('organic')}
-                          className={`px-6 py-2 rounded-md font-bold transition-colors duration-200
-                              ${selectedGardeningMethod === 'organic' ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                          className={`px-6 py-2 text-sm font-medium rounded-r-lg border border-gray-600 transition-colors duration-200 ${selectedGardeningMethod === 'organic' ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
                       >
                           Cultivo Orgánico
                       </button>
                   </div>
               </div>
-              {selectedGardeningMethod === 'hydroponics' ? (
-                  <CultivationModule initialMethod="hydroponics" userFinancialData={{ supermarketSpending: 1000 }} />
-              ) : (
-                  <CultivationModule initialMethod="organic" userFinancialData={{ supermarketSpending: 1000 }} />
-              )}
+              {/* Y aquí le pasamos los datos compartidos al Módulo de Cultivo. */}
+              <CultivationModule 
+                key={selectedGardeningMethod} 
+                initialMethod={selectedGardeningMethod} 
+                userFinancialData={sharedFinancialData}
+              />
             </Accordion>
           </div>
 
-          <div className="fixed bottom-4 right-4 z-50">
+          {/* +++ COMIENZA EL NUEVO CÓDIGO A AGREGAR +++ */}
+          {/* Módulo de Planificación Familiar */}
+          <div id="modulo-familia" className="mt-12 w-full max-w-4xl scroll-mt-20">
+            <Accordion 
+              id="modulo-familia"
+              title="Módulo 3: IA de Planificación Familiar"
+              isOpen={openAccordionId === 'modulo-familia'}
+              onToggle={() => handleAccordionToggle('modulo-familia')}
+            >
+              <FamilyPlannerModule />
+            </Accordion>
+          </div>
+          {/* +++ TERMINA EL NUEVO CÓDIGO A AGREGAR +++ */}
+
+          {/* Botones Flotantes */}
+          <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-4">
+            <VoiceChat />
             <FloatingActionButton onClick={() => setIsModalOpen(true)} />
           </div>
 
+          {/* Modal para Registrar Gastos */}
           <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Registrar Nuevo Gasto">
             <AddExpenseForm onExpenseAdded={handleExpenseAdded} />
           </Modal>
