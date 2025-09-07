@@ -109,7 +109,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     };
 
     try {
-        const response = await axios.post<AiPlanResult>('http://localhost:8000/cultivation/generate-plan', planRequest, { // CORRECCIÓN: Tipamos la respuesta.
+        const response = await axios.post<AiPlanResult>('https://resi-vn4v.onrender.com/cultivation/generate-plan', planRequest, { // CORRECCIÓN: Tipamos la respuesta.
             headers: { 'Authorization': `Bearer ${session.user.email}` }
         });
         setAiPlanResult(response.data);
@@ -131,7 +131,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     setLoadingControlAdvice(true);
     setAiControlAdvice(null);
     try {
-        const response = await axios.post<ValidationResult>('http://localhost:8000/cultivation/validate-parameters', { // CORRECCIÓN: Tipamos la respuesta.
+        const response = await axios.post<ValidationResult>('https://resi-vn4v.onrender.com/cultivation/validate-parameters', { // CORRECCIÓN: Tipamos la respuesta.
             method,
             ph: ph ? parseFloat(ph) : null,
             ec: ec ? parseFloat(ec) : null,
@@ -167,7 +167,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     }
     
     try {
-        const response = await axios.post<ChatResponse>('http://localhost:8000/cultivation/chat', {
+        const response = await axios.post<ChatResponse>('https://resi-vn4v.onrender.com/cultivation/chat', {
             question: aiQuestion,
             method: method
         }, {

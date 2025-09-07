@@ -1,15 +1,18 @@
+// En: frontend/src/components/AddExpenseForm.tsx
 'use client';
 
-import { useState, useRef } from 'react';
-import axios from 'axios';
-import MicRecorder from 'mic-recorder-to-mp3';
+import { useState, useRef, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useSession } from 'next-auth/react';
+import MicRecorder from 'mic-recorder-to-mp3';
+import apiClient from '@/lib/apiClient';
 
 interface AddExpenseFormProps {
   onExpenseAdded: () => void;
+  initialText?: string;
 }
 
-export default function AddExpenseForm({ onExpenseAdded }: AddExpenseFormProps) {
+export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpenseFormProps) {
   const { data: session } = useSession();
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -18,16 +21,28 @@ export default function AddExpenseForm({ onExpenseAdded }: AddExpenseFormProps) 
 
   const recorder = useRef<any>(null);
 
+  useEffect(() => {
+      // Inicializamos el recorder en el lado del cliente para evitar errores
+      recorder.current = new MicRecorder({ bitRate: 128 });
+      if (initialText) {
+          setTextInput(initialText);
+      }
+  }, [initialText]);
+
   const startRecording = () => {
     if (!session) {
         setFeedback('Inicia sesión para grabar un gasto.');
         return;
     }
-    recorder.current = new MicRecorder({ bitRate: 128 });
-    recorder.current.start().then(() => {
-      setIsRecording(true);
-      setFeedback('Grabando... Presiona de nuevo para detener.');
-    }).catch((e: any) => console.error(e));
+    if (recorder.current) {
+        recorder.current.start().then(() => {
+          setIsRecording(true);
+          setFeedback('Grabando... Presiona de nuevo para detener.');
+        }).catch((e: any) => {
+            console.error("Error al iniciar grabación:", e)
+            toast.error("No se pudo iniciar la grabación. Revisa los permisos del micrófono.")
+        });
+    }
   };
 
   const stopRecording = () => {
@@ -38,7 +53,6 @@ export default function AddExpenseForm({ onExpenseAdded }: AddExpenseFormProps) 
       setIsLoading(true);
       setFeedback('Procesando audio...');
       
-      // LA GUARDIA DE SEGURIDAD DEFINITIVA
       if (!session?.user?.email) {
           setFeedback("Error: No se encontró email de usuario en la sesión.");
           setIsLoading(false);
@@ -50,10 +64,10 @@ export default function AddExpenseForm({ onExpenseAdded }: AddExpenseFormProps) 
       formData.append("audio_file", audioFile);
 
       try {
-        const response = await axios.post('http://localhost:8000/transcribe', formData, {
+        const response = await apiClient.post('/transcribe', formData, {
           headers: { 
             'Content-Type': 'multipart/form-data',
-            'Authorization': `Bearer ${session.user.email}` // Ahora es 100% seguro
+            'Authorization': `Bearer ${session.user.email}`
           }
         });
         handleResponse(response.data);
@@ -62,72 +76,63 @@ export default function AddExpenseForm({ onExpenseAdded }: AddExpenseFormProps) 
       } finally {
         setIsLoading(false);
       }
-    }).catch((e: any) => console.error(e));
+    }).catch((e: any) => {
+        console.error("Error al detener la grabación:", e)
+        toast.error("Hubo un problema al procesar el audio.")
+        setIsRecording(false);
+    });
   };
   
   const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (textInput.trim() === '') return;
+    if (textInput.trim() === '' || !session?.user?.email) return;
 
     setIsLoading(true);
     setFeedback('Registrando gasto...');
 
-    // LA GUARDIA DE SEGURIDAD DEFINITIVA
-    if (!session?.user?.email) {
-        setFeedback("Error: No se encontró email de usuario en la sesión.");
-        setIsLoading(false);
-        return;
-    }
-
     try {
-      const response = await axios.post('http://localhost:8000/process-text', 
+      const response = await apiClient.post('/process-text', 
         { text: textInput },
-        { headers: { 'Authorization': `Bearer ${session.user.email}` } } // Ahora es 100% seguro
+        { headers: { 'Authorization': `Bearer ${session.user.email}` } }
       );
       handleResponse(response.data);
     } catch (error) {
       handleError(error);
     } finally {
       setIsLoading(false);
-      setTextInput('');
     }
   };
 
   const handleResponse = (data: any) => {
-    let success = false;
-    if (data?.status?.includes("éxito") && data?.data?.amount) {
+    if (data?.status?.includes("éxito")) {
       const d = data.data;
       setFeedback(`Registrado: $${d.amount} en ${d.category}`);
-      success = true;
-    } else if (data?.error) {
-      setFeedback(`Error: ${data.error}`);
+      setTimeout(() => { onExpenseAdded(); }, 1500); // Llama al padre para refrescar
     } else if (data?.data?.description) {
       setFeedback(`Respuesta: ${data.data.description}`);
+      setTextInput('');
     } else {
       setFeedback('Respuesta inesperada del servidor.');
-    }
-
-    if (success) {
-      setTimeout(() => {
-        onExpenseAdded();
-      }, 1500);
     }
   };
 
   const handleError = (error: any) => {
     console.error("Error en la petición:", error);
-    setFeedback("Hubo un error al procesar la solicitud.");
+    const errorMsg = "Hubo un error al procesar la solicitud.";
+    setFeedback(errorMsg);
+    toast.error(errorMsg);
   };
 
   return (
     <div className="space-y-6">
-      <h3 className="text-xl font-bold text-center">Toma el control de tu dinero, sin esfuerzo.</h3>
+      <h3 className="text-xl font-bold text-center text-white">Toma el control de tu dinero, sin esfuerzo.</h3>
       
       <div className="flex flex-col items-center">
         <p className="text-gray-400 mb-2">Presiona y háblale a Resi</p>
         <button 
+          type="button"
           onClick={isRecording ? stopRecording : startRecording} 
-          className={`px-6 py-3 rounded-full font-bold text-white transition-colors text-3xl w-24 h-24 flex items-center justify-center ${isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+          className={`px-6 py-3 rounded-full font-bold text-white transition-transform transform hover:scale-105 text-3xl w-24 h-24 flex items-center justify-center ${isRecording ? 'bg-red-600 animate-pulse' : 'bg-blue-600'}`}
           disabled={isLoading || !session}
         >
           {isRecording ? '■' : '🎙️'}
@@ -147,10 +152,13 @@ export default function AddExpenseForm({ onExpenseAdded }: AddExpenseFormProps) 
           value={textInput}
           onChange={(e) => setTextInput(e.target.value)}
           placeholder="Ej: 5000 pesos en el supermercado"
-          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-white"
           disabled={isLoading || !session}
         />
-        <button type="submit" className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-semibold" disabled={isLoading || !session}>
+        <button 
+            type="submit" 
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-semibold text-white disabled:opacity-50" 
+            disabled={isLoading || !session || !textInput.trim()}>
           Registrar
         </button>
       </form>

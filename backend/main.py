@@ -3,7 +3,9 @@ import soundfile as sf
 import spacy
 import re
 import random
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Header, status
+# IMPORTANTE: Añadimos la librería 'os' para leer variables de entorno
+import os
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Header, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import speech
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, func, ForeignKey
@@ -12,14 +14,28 @@ from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import List, Optional
+import os
 
-# --- CONFIGURACIÓN DE LA BASE DE DATOS (SQLite) ---
-DATABASE_URL = "sqlite:///./resi.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# --- CONFIGURACIÓN DE LA BASE DE DATOS (Producción y Local) ---
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL is None:
+    print("No se encontró DATABASE_URL, usando SQLite local.")
+    DATABASE_URL = "sqlite:///./resi.db"
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    print("Usando base de datos PostgreSQL de producción.")
+    # Corrección para la URL de Render
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # --- MODELOS DE LA BASE DE DATOS (Tablas) ---
+# ... (El resto de tus modelos de User, Expense, etc., no cambian)
 class User(Base):
     __tablename__ = "users"
     email = Column(String, primary_key=True, index=True)
@@ -56,15 +72,22 @@ class SavingGoal(Base):
     user_email = Column(String, ForeignKey("users.email"))
     owner = relationship("User", back_populates="saving_goals")
 
+
+# Es importante que esta línea esté DESPUÉS de definir los modelos
 Base.metadata.create_all(bind=engine)
 
 # --- CONFIGURACIÓN DE IA Y APP ---
-nlp = spacy.load("es_core_news_lg")
+# ... (El resto de tu archivo main.py sigue exactamente igual desde aquí)
+nlp = spacy.load("es_core_news_sm")
 speech_client = speech.SpeechClient()
-app = FastAPI(title="Resi API", version="3.0.0")
-origins = ["http://localhost:3000"]
+app = FastAPI(title="Resi API", version="3.1.0") # Versión con Base de Datos de Producción
+origins = [
+    "http://localhost:3000",
+    "https://resi-argentina.vercel.app", # Asegúrate que esta sea tu URL de Vercel
+]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
+# ... (Todos tus endpoints y lógica de Pydantic siguen aquí sin cambios)
 # --- MODELOS DE DATOS DE ENTRADA (Pydantic) ---
 class TextInput(BaseModel): text: str
 class BudgetItemInput(BaseModel): category: str; allocated_amount: float; is_custom: bool
@@ -79,6 +102,7 @@ class CultivationPlanRequest(BaseModel):
     soilType: Optional[str] = None
     location: str
     initialBudget: float
+    supermarketSpending: Optional[float] = 0
 class AIChatInput(BaseModel):
     question: str
     method: str
@@ -103,21 +127,32 @@ class FamilyPlanRequest(BaseModel):
     leisureActivities: List[str]
 
 # --- DEPENDENCIAS Y AUTENTICACIÓN ---
+# --- DEPENDENCIAS Y AUTENTICACIÓN (MEJORADAS) ---
 def get_db():
     db = SessionLocal()
     try: yield db
     finally: db.close()
 
-def get_current_user_email(authorization: Optional[str] = Header(None)):
+def get_current_user_email(request: Request, authorization: Optional[str] = Header(None)):
+    if request.method == "OPTIONS":
+        return None
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Token de autorización faltante o inválido.")
     return authorization.split(" ")[1]
 
-def get_user_or_400(user_email: str = Depends(get_current_user_email), db: Session = Depends(get_db)):
+def get_user_or_create(user_email: str = Depends(get_current_user_email), db: Session = Depends(get_db)):
+    if user_email is None:
+        raise HTTPException(status_code=204, detail="No Content") 
     user = db.query(User).filter(User.email == user_email).first()
     if not user:
-        raise HTTPException(status_code=400, detail="Usuario no encontrado.")
+        print(f"Usuario '{user_email}' no encontrado. Creando nuevo registro.")
+        new_user = User(email=user_email, has_completed_onboarding=False)
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return new_user
     return user
+
 
 # --- LÓGICA DE PROCESAMIENTO DE TEXTO (NLP) ---
 def parse_expense_from_text(text: str, db: Session, user_email: str):
@@ -173,10 +208,10 @@ def parse_expense_from_text(text: str, db: Session, user_email: str):
 # --- ENDPOINTS GENERALES Y MÓDULO 1: FINANZAS ---
 @app.get("/")
 def read_root():
-    return {"status": "ok", "version": "3.0.0"}
+    return {"status": "ok", "version": "3.1.0"}
 
 @app.get("/check-onboarding")
-def check_onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+def check_onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     return {"onboarding_completed": user.has_completed_onboarding if user else False}
 
 @app.post("/onboarding-complete")
@@ -200,7 +235,7 @@ async def onboarding_complete(onboarding_data: OnboardingData, db: Session = Dep
     return {"status": "Información guardada con éxito"}
 
 @app.post("/transcribe")
-async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     file_path = "temp_audio.wav"
     with open(file_path, "wb") as buffer:
         buffer.write(await audio_file.read())
@@ -226,7 +261,7 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Dep
         return {"status": "Texto entendido, pero no se pudo registrar como gasto", "data": {"description": full_transcript}}
 
 @app.post("/process-text")
-async def process_text(input_data: TextInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+async def process_text(input_data: TextInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     parsed_data = parse_expense_from_text(input_data.text, db, user.email)
     if parsed_data:
         new_expense = Expense(user_email=user.email, **parsed_data)
@@ -238,7 +273,7 @@ async def process_text(input_data: TextInput, db: Session = Depends(get_db), use
         return {"status": "Texto entendido, pero no se pudo registrar como gasto", "data": {"description": input_data.text}}
 
 @app.get("/budget")
-def get_budget(db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+def get_budget(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     items = db.query(BudgetItem).filter(BudgetItem.user_email == user.email).all()
     income_item = next((item for item in items if item.category == "_income"), None)
     income = income_item.allocated_amount if income_item else 0
@@ -246,7 +281,7 @@ def get_budget(db: Session = Depends(get_db), user: User = Depends(get_user_or_4
     return {"income": income, "items": budget_items}
 
 @app.post("/budget")
-def update_budget(budget_input: BudgetInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+def update_budget(budget_input: BudgetInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     if not user.has_completed_onboarding:
         raise HTTPException(status_code=400, detail="Por favor, complete el onboarding primero.")
     
@@ -260,11 +295,11 @@ def update_budget(budget_input: BudgetInput, db: Session = Depends(get_db), user
     return {"status": "Presupuesto guardado con éxito"}
 
 @app.get("/expenses")
-def get_expenses(db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+def get_expenses(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     return db.query(Expense).filter(Expense.user_email == user.email).order_by(Expense.date.desc()).all()
 
 @app.get("/dashboard-summary")
-def get_dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+def get_dashboard_summary(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     budget_items = db.query(BudgetItem).filter(BudgetItem.user_email == user.email).all()
     income = next((item.allocated_amount for item in budget_items if item.category == "_income"), 0)
     
@@ -300,7 +335,7 @@ def get_dashboard_summary(db: Session = Depends(get_db), user: User = Depends(ge
 
 # --- ENDPOINTS DEL MÓDULO 2: CULTIVO ---
 @app.post("/cultivation/generate-plan")
-def generate_cultivation_plan(request: CultivationPlanRequest, user: User = Depends(get_user_or_400)):
+def generate_cultivation_plan(request: CultivationPlanRequest, user: User = Depends(get_user_or_create)):
     crop, system, materials, tips = "", "", "", ""
 
     if request.experience == 'principiante':
@@ -333,7 +368,7 @@ def generate_cultivation_plan(request: CultivationPlanRequest, user: User = Depe
     return response_plan
 
 @app.post("/cultivation/chat")
-def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_400)):
+def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_create)):
     question = request.question.lower()
     response, image_prompt = "", ""
 
@@ -353,7 +388,7 @@ def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_400)
     return {"response": response, "imagePrompt": image_prompt}
 
 @app.post("/cultivation/validate-parameters")
-def validate_cultivation_parameters(request: ValidateParamsRequest, user: User = Depends(get_user_or_400)):
+def validate_cultivation_parameters(request: ValidateParamsRequest, user: User = Depends(get_user_or_create)):
     is_valid = True
     advice = "¡Tus parámetros están excelentes! Sigue así para un crecimiento óptimo."
 
@@ -380,7 +415,7 @@ def validate_cultivation_parameters(request: ValidateParamsRequest, user: User =
 
 # --- ENDPOINTS DE ANÁLISIS Y METAS ---
 @app.get("/analysis/resilience-summary", response_model=ResilienceSummary)
-def get_resilience_summary(db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+def get_resilience_summary(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     budget_items = db.query(BudgetItem).filter(BudgetItem.user_email == user.email).all()
     income = next((item.allocated_amount for item in budget_items if item.category == "_income"), 0)
     
@@ -426,7 +461,7 @@ def get_resilience_summary(db: Session = Depends(get_db), user: User = Depends(g
     }
 
 @app.get("/analysis/monthly-distribution")
-def get_monthly_distribution(db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+def get_monthly_distribution(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     today = datetime.utcnow()
     start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
@@ -441,7 +476,7 @@ def get_monthly_distribution(db: Session = Depends(get_db), user: User = Depends
     return [{"name": item.category, "value": item.total_spent} for item in distribution]
 
 @app.get("/analysis/spending-trend")
-def get_spending_trend(db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+def get_spending_trend(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     spending_trend = []
     
     today = datetime.utcnow()
@@ -469,12 +504,12 @@ def get_spending_trend(db: Session = Depends(get_db), user: User = Depends(get_u
     return spending_trend
 
 @app.get("/goals", response_model=List[dict])
-def get_goals(db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+def get_goals(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     goals = db.query(SavingGoal).filter(SavingGoal.user_email == user.email).all()
     return [{"id": goal.id, "name": goal.name, "target_amount": goal.target_amount, "current_amount": goal.current_amount} for goal in goals]
 
 @app.post("/goals")
-def create_goal(goal: GoalInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+def create_goal(goal: GoalInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     new_goal = SavingGoal(name=goal.name, target_amount=goal.target_amount, user_email=user.email)
     db.add(new_goal)
     db.commit()
@@ -482,7 +517,7 @@ def create_goal(goal: GoalInput, db: Session = Depends(get_db), user: User = Dep
     return new_goal
 
 @app.get("/goals/projection/{goal_id}")
-def get_goal_projection(goal_id: int, db: Session = Depends(get_db), user: User = Depends(get_user_or_400)):
+def get_goal_projection(goal_id: int, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     ahorro_budget = db.query(BudgetItem).filter(BudgetItem.user_email == user.email, BudgetItem.category == "Ahorro").first()
     monthly_saving = ahorro_budget.allocated_amount if ahorro_budget else 0
     if monthly_saving <= 0:
@@ -516,7 +551,7 @@ def get_goal_projection(goal_id: int, db: Session = Depends(get_db), user: User 
 
 # --- ENDPOINTS DEL MÓDULO 3: PLANIFICACIÓN FAMILIAR ---
 @app.post("/family-plan/generate")
-def generate_family_plan(request: FamilyPlanRequest, user: User = Depends(get_user_or_400)):
+def generate_family_plan(request: FamilyPlanRequest, user: User = Depends(get_user_or_create)):
     """
     Endpoint de IA que recibe el contexto familiar y genera un plan integral
     de alimentación, ahorro y ocio.

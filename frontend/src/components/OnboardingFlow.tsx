@@ -49,7 +49,7 @@ const OnboardingFlow = ({ onboardingCompleted, onboardingCompleteHandler }: Onbo
 
       const toastId = toast.loading("Guardando tu información y creando tu primer presupuesto...");
       try {
-        await axios.post('http://localhost:8000/onboarding-complete', onboardingData, {
+        await axios.post('https://resi-vn4v.onrender.com/onboarding-complete', onboardingData, {
           headers: { 'Authorization': `Bearer ${session.user.email}` },
         });
 

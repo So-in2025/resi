@@ -13,9 +13,10 @@ import VoiceChat from "@/components/VoiceChat";
 import CultivationModule from "@/components/CultivationModule";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import Header from "@/components/Header";
-import axios from "axios";
 import FinanceModule from '@/components/FinanceModule'; 
 import FamilyPlannerModule from "@/components/FamilyPlannerModule";
+import apiClient from "@/lib/apiClient"; // Importamos el cliente de API centralizado
+import { useResiVoice } from "@/hooks/useResiVoice"; // Importamos el hook de voz
 
 // --- SUBCOMPONENTES ---
 const HeroSection = () => (
@@ -34,24 +35,40 @@ export default function HomePage() {
   // --- ESTADOS PRINCIPALES DEL ORQUESTADOR ---
   const { data: session, status } = useSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [initialExpenseText, setInitialExpenseText] = useState(''); // Estado para el texto del dictado
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [openAccordionId, setOpenAccordionId] = useState<string | null>('mis-finanzas');
   const [selectedGardeningMethod, setSelectedGardeningMethod] = useState('hydroponics');
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-
-  // ESTADO CLAVE: Guarda los datos que se compartirán entre módulos.
-  // FinanceModule nos dará esta información, y nosotros se la pasaremos a CultivationModule.
   const [sharedFinancialData, setSharedFinancialData] = useState<{ supermarketSpending: number } | null>(null);
+
+  // CORRECCIÓN: Estado 'key' para forzar la actualización de los módulos de datos
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
+
+  // CORRECCIÓN: Se activa el hook de voz para escuchar comandos globales
+  const { actionToPerform, clearAction } = useResiVoice();
 
   // --- EFECTOS Y MANEJADORES DE EVENTOS ---
 
-  // Efecto para verificar el estado de onboarding del usuario al cargar o cambiar la sesión.
+  // Efecto para manejar las acciones del micrófono global (ej: abrir modal)
+  useEffect(() => {
+    if (actionToPerform) {
+      if (actionToPerform.type === 'OPEN_ADD_EXPENSE_MODAL_WITH_TEXT') {
+        setInitialExpenseText(actionToPerform.payload);
+        setIsModalOpen(true);
+      }
+      // Limpiamos la acción para que no se vuelva a ejecutar
+      clearAction();
+    }
+  }, [actionToPerform, clearAction]);
+
+  // Efecto para verificar el estado de onboarding del usuario
   useEffect(() => {
     const checkOnboardingStatus = async () => {
       if (session?.user?.email) {
         try {
-          const response = await axios.get('http://localhost:8000/check-onboarding', {
+          const response = await apiClient.get('/check-onboarding', { // Usamos apiClient
             headers: { 'Authorization': `Bearer ${session.user.email}` },
           });
           setHasCompletedOnboarding(response.data.onboarding_completed);
@@ -70,33 +87,29 @@ export default function HomePage() {
     }
   }, [session, status]);
   
-  // Manejador para el evento de 'gasto añadido', cierra el modal.
+  // CORRECCIÓN: El manejador ahora fuerza una recarga de datos
   const handleExpenseAdded = () => {
     setIsModalOpen(false);
-    // Podríamos agregar aquí una lógica para forzar la recarga de datos del FinanceModule
+    setInitialExpenseText('');
+    // Incrementamos la key. Esto forzará a los componentes que la usen a recargarse.
+    setDataRefreshKey(prevKey => prevKey + 1); 
   };
 
-  // Manejador para abrir/cerrar los acordeones de los módulos.
   const handleAccordionToggle = (id: string) => {
     setOpenAccordionId(openAccordionId === id ? null : id);
   };
   
-  // Manejador para la navegación desde la Sidebar.
   const handleSidebarClick = (id: string) => {
-    if (openAccordionId === id) return; // No hacer nada si ya está abierto
+    if (openAccordionId === id) return;
     setOpenAccordionId(id);
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   
-  // Manejador para cuando el usuario completa el flujo de bienvenida.
   const handleOnboardingComplete = () => {
     setHasCompletedOnboarding(true);
-    setOpenAccordionId('mis-finanzas'); // Llevamos al usuario directo al módulo de finanzas
+    setOpenAccordionId('mis-finanzas');
   };
 
-  // FUNCIÓN PUENTE: Esta función se pasa como prop a FinanceModule.
-  // Cuando FinanceModule termina de cargar sus datos, llama a esta función
-  // para "subir" la información relevante al orquestador (esta página).
   const handleFinancialDataLoaded = (data: { supermarketSpending: number }) => {
     setSharedFinancialData(data);
   };
@@ -106,9 +119,8 @@ export default function HomePage() {
   // --- RENDERIZADO DEL COMPONENTE ---
   return (
     <>
-      <Header />
+      <Header refreshTrigger={dataRefreshKey} />
       <div className="flex">
-        {/* Sidebar fija en el borde izquierdo */}
         <div className="fixed top-0 left-0 h-screen md:pt-16 z-40">
           <Sidebar 
             isOpen={isSidebarOpen} 
@@ -118,7 +130,6 @@ export default function HomePage() {
           />
         </div>
         
-        {/* Contenido Principal de la Página */}
         <main className="flex-1 flex flex-col items-center p-4 md:p-8 bg-gray-900 text-white font-sans md:ml-20 pt-16">
           <HeroSection />
           
@@ -130,7 +141,6 @@ export default function HomePage() {
               "La paz mental de saber que, paso a paso, estás construyendo el control sobre tu futuro."
           ]} finalMessage="¡Bienvenido al cambio!" />
 
-          {/* Módulo de Onboarding / Primeros Pasos */}
           <div id="primeros-pasos" className="mt-12 w-full max-w-4xl scroll-mt-20">
             <Accordion 
               id="primeros-pasos"
@@ -145,7 +155,6 @@ export default function HomePage() {
             </Accordion>
           </div>
 
-          {/* Módulo Financiero */}
           <div id="mis-finanzas" className="mt-12 w-full max-w-4xl scroll-mt-20">
             <Accordion 
               id="mis-finanzas"
@@ -158,13 +167,11 @@ export default function HomePage() {
                   <p>Por favor, completá los "Primeros Pasos" para activar este módulo.</p>
                 </div>
               ) : (
-                // Aquí ocurre la magia: Le pasamos la función "puente" al Módulo Financiero.
-                <FinanceModule onDataLoaded={handleFinancialDataLoaded} />
+                <FinanceModule key={dataRefreshKey} onDataLoaded={handleFinancialDataLoaded} />
               )}
             </Accordion>
           </div>
 
-          {/* Módulo de Cultivo */}
           <div id="modulo-cultivo" className="mt-12 w-full max-w-4xl scroll-mt-20">
             <Accordion 
               id="modulo-cultivo"
@@ -188,7 +195,6 @@ export default function HomePage() {
                       </button>
                   </div>
               </div>
-              {/* Y aquí le pasamos los datos compartidos al Módulo de Cultivo. */}
               <CultivationModule 
                 key={selectedGardeningMethod} 
                 initialMethod={selectedGardeningMethod} 
@@ -196,9 +202,7 @@ export default function HomePage() {
               />
             </Accordion>
           </div>
-
-          {/* +++ COMIENZA EL NUEVO CÓDIGO A AGREGAR +++ */}
-          {/* Módulo de Planificación Familiar */}
+          
           <div id="modulo-familia" className="mt-12 w-full max-w-4xl scroll-mt-20">
             <Accordion 
               id="modulo-familia"
@@ -209,19 +213,15 @@ export default function HomePage() {
               <FamilyPlannerModule />
             </Accordion>
           </div>
-          {/* +++ TERMINA EL NUEVO CÓDIGO A AGREGAR +++ */}
 
-          {/* Botones Flotantes */}
           <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-4">
             <VoiceChat />
             <FloatingActionButton onClick={() => setIsModalOpen(true)} />
           </div>
 
-          {/* Modal para Registrar Gastos */}
-          <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Registrar Nuevo Gasto">
-            <AddExpenseForm onExpenseAdded={handleExpenseAdded} />
+          <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setInitialExpenseText(''); }} title="Registrar Nuevo Gasto">
+            <AddExpenseForm onExpenseAdded={handleExpenseAdded} initialText={initialExpenseText} />
           </Modal>
-
         </main>
       </div>
     </>

@@ -1,12 +1,13 @@
 // En: frontend/src/components/SavingGoals.tsx
 'use client';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient'; // CORRECCIÓN: Usamos el cliente de API centralizado
 import { useSession } from 'next-auth/react';
 import { FaPlus, FaBullseye, FaLightbulb } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import SectionHeader from './SectionHeader';
 
+// --- INTERFACES Y TIPOS DE DATOS ---
 interface Goal {
   id: number;
   name: string;
@@ -22,6 +23,7 @@ interface SavingGoalsProps {
     onGoalUpdate: () => void;
 }
 
+// --- COMPONENTE PRINCIPAL ---
 export default function SavingGoals({ goalsData, onGoalUpdate }: SavingGoalsProps) {
     const { data: session } = useSession();
     const [goals, setGoals] = useState<Goal[]>([]);
@@ -32,12 +34,14 @@ export default function SavingGoals({ goalsData, onGoalUpdate }: SavingGoalsProp
 
     useEffect(() => {
         setGoals(goalsData);
+        // Lógica para auto-seleccionar la primera meta si no hay ninguna seleccionada
         if (goalsData.length > 0 && (!selectedGoal || !goalsData.find(g => g.id === selectedGoal.id))) {
             handleSelectGoal(goalsData[0]);
         } else if (goalsData.length === 0) {
             setSelectedGoal(null);
             setProjection(null);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [goalsData]);
 
     const handleCreateGoal = async (e: React.FormEvent) => {
@@ -45,7 +49,8 @@ export default function SavingGoals({ goalsData, onGoalUpdate }: SavingGoalsProp
         if (!newGoalName || !newGoalAmount || !session?.user?.email) return;
         const toastId = toast.loading("Creando meta...");
         try {
-            await axios.post('http://localhost:8000/goals', 
+            // CORRECCIÓN: Se usa apiClient en lugar de axios con URL completa
+            await apiClient.post('/goals', 
                 { name: newGoalName, target_amount: newGoalAmount },
                 { headers: { 'Authorization': `Bearer ${session.user.email}` } }
             );
@@ -64,7 +69,8 @@ export default function SavingGoals({ goalsData, onGoalUpdate }: SavingGoalsProp
         setProjection(null);
         const toastId = toast.loading("Calculando proyección de Resi...");
         try {
-            const response = await axios.get(`http://localhost:8000/goals/projection/${goal.id}`, {
+            // CORRECCIÓN: Se usa apiClient en lugar de axios con URL completa
+            const response = await apiClient.get(`/goals/projection/${goal.id}`, {
                 headers: { 'Authorization': `Bearer ${session.user.email}` }
             });
             setProjection(response.data);
@@ -94,6 +100,7 @@ export default function SavingGoals({ goalsData, onGoalUpdate }: SavingGoalsProp
                         )) : <p className="text-sm text-gray-400 text-center py-4">Aún no creaste ninguna meta.</p>}
                     </div>
                 </div>
+
                 <div className="md:col-span-2 bg-gray-800 p-6 rounded-lg min-h-[300px] flex flex-col justify-center">
                     {selectedGoal ? (
                         <div className="text-center">

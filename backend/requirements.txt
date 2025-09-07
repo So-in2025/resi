@@ -7,8 +7,9 @@ pydantic
 python-multipart
 soundfile
 google-cloud-speech
-spacy
+spacy==3.7.5
+psycopg2-binary
 
-# CORRECCIÓN: Se reemplaza el modelo grande (lg) por el mediano (md),
-# que es mucho más eficiente en memoria para el despliegue.
-https://github.com/explosion/spacy-models/releases/download/es_core_news_md-3.7.0/es_core_news_md-3.7.0.tar.gz
+# CORRECCIÓN FINAL: Usamos el modelo PEQUEÑO (sm), el más liviano de todos,
+# para asegurar que la app arranque sin problemas en el plan gratuito de Render.
+https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.7.0/es_core_news_sm-3.7.0.tar.gz

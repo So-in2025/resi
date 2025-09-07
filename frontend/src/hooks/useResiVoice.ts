@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
+import toast from 'react-hot-toast';
 
+// TU LISTA COMPLETA DE CONSEJOS Y TRIVIAS (INTACTA)
 const consejos = [
   "Recordá registrar hasta el gasto más chiquito. ¡Esos son los que más suman a fin de mes!",
   "Una vez por semana, tomate 5 minutos para chusmear tu 'Historial'. Te va a sorprender lo que podés descubrir.",
@@ -30,7 +33,6 @@ let shuffledConsejos: string[] = [];
 let consejoIndex = 0;
 
 const shuffleConsejos = () => {
-  console.log("¡Barajando la lista de consejos!");
   const array = [...consejos];
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -42,6 +44,11 @@ const shuffleConsejos = () => {
 
 
 export const useResiVoice = () => {
+  const [responseToSpeak, setResponseToSpeak] = useState('');
+  const [actionToPerform, setActionToPerform] = useState<{ type: string; payload?: any } | null>(null);
+  // Nuevo estado para controlar si el saludo de bienvenida ya se ha dicho
+  const [hasSpokenWelcome, setHasSpokenWelcome] = useState(false);
+
   const speak = useCallback((text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
@@ -52,11 +59,7 @@ export const useResiVoice = () => {
       const voices = window.speechSynthesis.getVoices();
       const googleSpanishVoices = voices.filter(voice => voice.lang.startsWith('es') && voice.name.includes('Google'));
       
-      if (googleSpanishVoices.length > 1) {
-        utterance.voice = googleSpanishVoices[1];
-      } else if (googleSpanishVoices.length > 0) {
-        utterance.voice = googleSpanishVoices[0];
-      }
+      utterance.voice = googleSpanishVoices[1] || googleSpanishVoices[0] || voices.find(v => v.lang.startsWith('es')) || voices[0];
       
       if (utterance.voice) {
         utterance.lang = utterance.voice.lang;
@@ -75,31 +78,76 @@ export const useResiVoice = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (shuffledConsejos.length === 0) {
-      shuffleConsejos();
-    }
-    
-    const welcomeMessage = "Hola; soy Resi; Tu asistente para el empoderamiento económico;. ¿Te sentís agoviado por la situación económica actual?. Llegué para ayudarte!. Para que juntos le pongamos un freno a esa sensación y empieces a sembrar el futuro que vos y tu familia se merecen!";
-    
-    const initialTimeout = setTimeout(() => { speak(welcomeMessage); }, 2500);
+  const { transcript, finalTranscript, listening, resetTranscript, browserSupportsSpeechRecognition } = useSpeechRecognition();
 
-    const tipInterval = setInterval(() => {
-      if (consejoIndex >= shuffledConsejos.length) {
-        shuffleConsejos();
+  const startListening = () => {
+    if (browserSupportsSpeechRecognition) {
+      // El saludo de bienvenida ahora se activa con la primera interacción del usuario.
+      if (!hasSpokenWelcome) {
+        const welcomeMessage = "Hola, soy Resi. Presioná de nuevo y decime un gasto para registrarlo, por ejemplo: 5000 pesos en nafta.";
+        speak(welcomeMessage);
+        setHasSpokenWelcome(true);
       }
-      
-      const currentConsejo = shuffledConsejos[consejoIndex];
-      speak(currentConsejo);
-      consejoIndex++;
-    }, 40000);
+      resetTranscript();
+      SpeechRecognition.startListening({ continuous: false, language: 'es-AR' });
+      toast('¡Te escucho!', { icon: '🎤', duration: 2000 });
+    } else {
+      toast.error('Tu navegador no soporta el reconocimiento de voz.');
+    }
+  };
 
+  const stopListening = () => SpeechRecognition.stopListening();
+
+  useEffect(() => {
+    if (finalTranscript) {
+      const command = finalTranscript.toLowerCase();
+      // Lógica para interpretar el comando de voz del usuario
+      if (command.includes("registrar") || command.includes("gasto") || command.includes("gasté")) {
+        setActionToPerform({ type: 'OPEN_ADD_EXPENSE_MODAL_WITH_TEXT', payload: finalTranscript });
+        speak('Entendido. Revisá los datos y guardá el gasto.');
+      }
+      resetTranscript();
+    }
+  }, [finalTranscript, resetTranscript, speak]);
+
+  useEffect(() => {
+    if (responseToSpeak) {
+      speak(responseToSpeak);
+      setResponseToSpeak('');
+    }
+  }, [responseToSpeak, speak]);
+
+  // Lógica para las trivias (ahora funciona correctamente)
+  useEffect(() => {
+    shuffleConsejos();
+    const tipInterval = setInterval(() => {
+      // La trivia solo se activa si no estamos escuchando y si el saludo inicial ya se dio.
+      if (!listening && hasSpokenWelcome) {
+        if (consejoIndex >= shuffledConsejos.length) {
+          shuffleConsejos();
+        }
+        speak(shuffledConsejos[consejoIndex]);
+        consejoIndex++;
+      }
+    }, 45000); // 45 segundos
+
+    // Función de limpieza para evitar que se acumulen timers.
     return () => {
-      clearTimeout(initialTimeout);
       clearInterval(tipInterval);
       window.speechSynthesis.cancel();
     };
-  }, [speak]);
+  }, [speak, listening, hasSpokenWelcome]);
 
-  return null;
+  const clearAction = () => setActionToPerform(null);
+
+  // ESTA ES LA PARTE QUE FALTABA
+  return { 
+    listening, 
+    startListening, 
+    stopListening, 
+    browserSupportsSpeechRecognition, 
+    actionToPerform,
+    clearAction,
+    transcript 
+  };
 };
