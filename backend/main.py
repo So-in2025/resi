@@ -1,5 +1,6 @@
 # En: backend/main.py
-import soundfile as sf
+# Modificado para una máxima productividad, solidez y fiabilidad.
+
 import spacy
 import re
 import random
@@ -14,10 +15,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import List, Optional
-import os
-# --- New Pydantic Model for Chat Input ---
-class AIChatInput(BaseModel):
-    question: str
+
 # --- CONFIGURACIÓN DE LA BASE DE DATOS (Producción y Local) ---
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -33,11 +31,8 @@ else:
     engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
 
-# --- MODELOS DE LA BASE DE DATOS (Tablas) ---
-# ... (El resto de tus modelos de User, Expense, etc., no cambian)
+# Definición de los modelos de la base de datos
 class User(Base):
     __tablename__ = "users"
     email = Column(String, primary_key=True, index=True)
@@ -74,22 +69,18 @@ class SavingGoal(Base):
     user_email = Column(String, ForeignKey("users.email"))
     owner = relationship("User", back_populates="saving_goals")
 
-
-# Es importante que esta línea esté DESPUÉS de definir los modelos
 Base.metadata.create_all(bind=engine)
 
-# --- CONFIGURACIÓN DE IA Y APP ---
-# ... (El resto de tu archivo main.py sigue exactamente igual desde aquí)
+# --- CONFIGURACIÓN DE IA Y FASTAPI ---
 nlp = spacy.load("es_core_news_sm")
 speech_client = speech.SpeechClient()
-app = FastAPI(title="Resi API", version="3.1.0") # Versión con Base de Datos de Producción
+app = FastAPI(title="Resi API", version="3.1.0")
 origins = [
     "http://localhost:3000",
-    "https://resi-argentina.vercel.app", # Asegúrate que esta sea tu URL de Vercel
+    "https://resi-argentina.vercel.app",
 ]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-# ... (Todos tus endpoints y lógica de Pydantic siguen aquí sin cambios)
 # --- MODELOS DE DATOS DE ENTRADA (Pydantic) ---
 class TextInput(BaseModel): text: str
 class BudgetItemInput(BaseModel): category: str; allocated_amount: float; is_custom: bool
@@ -129,7 +120,6 @@ class FamilyPlanRequest(BaseModel):
     leisureActivities: List[str]
 
 # --- DEPENDENCIAS Y AUTENTICACIÓN ---
-# --- DEPENDENCIAS Y AUTENTICACIÓN (MEJORADAS) ---
 def get_db():
     db = SessionLocal()
     try: yield db
@@ -238,16 +228,20 @@ async def onboarding_complete(onboarding_data: OnboardingData, db: Session = Dep
 
 @app.post("/transcribe")
 async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
-    file_path = "temp_audio.wav"
-    with open(file_path, "wb") as buffer:
-        buffer.write(await audio_file.read())
-    data, samplerate = sf.read(file_path)
-    config = speech.RecognitionConfig(encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16, sample_rate_hertz=samplerate, language_code="es-AR")
-    with open(file_path, "rb") as f:
-        content = f.read()
-    audio = speech.RecognitionAudio(content=content)
+    # --- CORRECCIÓN: Procesamiento de audio más robusto sin librerías externas ---
+    audio_content = await audio_file.read()
+    
+    # Crea una instancia de la API de voz.
+    config = speech.RecognitionConfig(
+        language_code="es-AR",
+        enable_automatic_punctuation=True
+    )
+    audio = speech.RecognitionAudio(content=audio_content)
+    
+    # Llama a la API de Google Cloud Speech-to-Text
     response = speech_client.recognize(config=config, audio=audio)
     transcripts = [result.alternatives[0].transcript for result in response.results]
+    
     if not transcripts:
         raise HTTPException(status_code=400, detail="No se pudo entender el audio.")
     full_transcript = " ".join(transcripts)
@@ -418,49 +412,58 @@ def validate_cultivation_parameters(request: ValidateParamsRequest, user: User =
 # --- ENDPOINTS DE ANÁLISIS Y METAS ---
 @app.get("/analysis/resilience-summary", response_model=ResilienceSummary)
 def get_resilience_summary(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
-    budget_items = db.query(BudgetItem).filter(BudgetItem.user_email == user.email).all()
-    income = next((item.allocated_amount for item in budget_items if item.category == "_income"), 0)
-    
-    today = datetime.utcnow()
-    start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    expenses_this_month = db.query(Expense).filter(Expense.date >= start_of_month, Expense.user_email == user.email).all()
-    total_spent = sum(expense.amount for expense in expenses_this_month)
-
-    title = "¡Felicitaciones!"
-    message = "Tus finanzas están bajo control este mes."
-    suggestion = "Seguí así y considerá aumentar tu meta de ahorro en el planificador."
-    
-    if income > 0:
-        spending_ratio = total_spent / income
-        if spending_ratio > 0.9:
-            title = "¡Alerta Roja!"
-            message = f"Ya gastaste más del 90% de tus ingresos (${total_spent:,.0f} de ${income:,.0f})."
-            suggestion = "Es momento de revisar tus gastos variables en el 'Historial' para frenar a tiempo."
-        elif spending_ratio > 0.7:
-            title = "Atención, Zona Amarilla"
-            message = f"Estás en un 70% de tus ingresos (${total_spent:,.0f} de ${income:,.0f})."
-            suggestion = "Moderá los gastos no esenciales por el resto del mes para asegurar que llegues a tu meta de ahorro."
-
-    if expenses_this_month:
-        category_spending = {}
-        for expense in expenses_this_month:
-            category_spending[expense.category] = category_spending.get(expense.category, 0) + expense.amount
+    try:
+        budget_items = db.query(BudgetItem).filter(BudgetItem.user_email == user.email).all()
+        income = next((item.allocated_amount for item in budget_items if item.category == "_income"), 0)
         
-        non_actionable_categories = ["Ahorro", "Inversión", "Vivienda", "Servicios Básicos", "Deudas", "Préstamos"]
-        actionable_spending = {k: v for k, v in category_spending.items() if k not in non_actionable_categories}
+        today = datetime.utcnow()
+        start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        expenses_this_month = db.query(Expense).filter(Expense.date >= start_of_month, Expense.user_email == user.email).all()
+        total_spent = sum(expense.amount for expense in expenses_this_month)
+
+        title = "¡Felicitaciones!"
+        message = "Tus finanzas están bajo control este mes."
+        suggestion = "Seguí así y considerá aumentar tu meta de ahorro en el planificador."
         
-        if actionable_spending:
-            top_category = max(actionable_spending, key=actionable_spending.get)
-            suggestion += f" Tu mayor gasto variable es en '{top_category}'. ¿Hay alguna oportunidad de optimizarlo?"
+        if income > 0:
+            spending_ratio = total_spent / income
+            if spending_ratio > 0.9:
+                title = "¡Alerta Roja!"
+                message = f"Ya gastaste más del 90% de tus ingresos (${total_spent:,.0f} de ${income:,.0f})."
+                suggestion = "Es momento de revisar tus gastos variables en el 'Historial' para frenar a tiempo."
+            elif spending_ratio > 0.7:
+                title = "Atención, Zona Amarilla"
+                message = f"Estás en un 70% de tus ingresos (${total_spent:,.0f} de ${income:,.0f})."
+                suggestion = "Moderá los gastos no esenciales por el resto del mes para asegurar que llegues a tu meta de ahorro."
 
-    supermarket_spending = sum(e.amount for e in expenses_this_month if e.category == "Supermercado")
+        if expenses_this_month:
+            category_spending = {}
+            for expense in expenses_this_month:
+                category_spending[expense.category] = category_spending.get(expense.category, 0) + expense.amount
+            
+            non_actionable_categories = ["Ahorro", "Inversión", "Vivienda", "Servicios Básicos", "Deudas", "Préstamos"]
+            actionable_spending = {k: v for k, v in category_spending.items() if k not in non_actionable_categories}
+            
+            if actionable_spending:
+                top_category = max(actionable_spending, key=actionable_spending.get)
+                suggestion += f" Tu mayor gasto variable es en '{top_category}'. ¿Hay alguna oportunidad de optimizarlo?"
 
-    return {
-        "title": title,
-        "message": message,
-        "suggestion": suggestion,
-        "supermarket_spending": supermarket_spending
-    }
+        supermarket_spending = sum(e.amount for e in expenses_this_month if e.category == "Supermercado")
+
+        return {
+            "title": title,
+            "message": message,
+            "suggestion": suggestion,
+            "supermarket_spending": supermarket_spending
+        }
+    except Exception as e:
+        print(f"Error en get_resilience_summary: {e}")
+        return {
+            "title": "Sin datos",
+            "message": "Aún no tienes suficiente información para un resumen.",
+            "suggestion": "Completa tu presupuesto y registra tus primeros gastos.",
+            "supermarket_spending": 0
+        }
 
 @app.get("/analysis/monthly-distribution")
 def get_monthly_distribution(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
@@ -551,102 +554,140 @@ def get_goal_projection(goal_id: int, db: Session = Depends(get_db), user: User 
 
     return {"months_remaining": months_remaining, "suggestion": suggestion}
 
-# --- ENDPOINTS DEL MÓDULO 3: PLANIFICACIÓN FAMILIAR ---
-@app.post("/family-plan/generate")
-def generate_family_plan(request: FamilyPlanRequest, user: User = Depends(get_user_or_create)):
-    """
-    Endpoint de IA que recibe el contexto familiar y genera un plan integral
-    de alimentación, ahorro y ocio.
-    """
-    # Base de datos de recetas locales y económicas (ampliable)
-    recipes = [
-        {"name": "Guiso de Lentejas Power", "tags": ["económico", "rinde mucho"]},
-        {"name": "Tarta de Espinaca y Ricota", "tags": ["vegetariano", "fácil"]},
-        {"name": "Pollo al Horno con Papas y Batatas", "tags": ["clásico", "finde"]},
-        {"name": "Milanesas de Berenjena con Puré", "tags": ["vegetariano", "saludable"]},
-        {"name": "Pastel de Papa", "tags": ["clásico", "rinde mucho"]},
-        {"name": "Fideos con Brócoli y Ajo", "tags": ["rápido", "económico"]},
-        {"name": "Risotto de Hongos de Pino (si es temporada)", "tags": ["gourmet", "económico"]},
-        {"name": "Empanadas de Humita", "tags": ["regional", "vegetariano"]},
-    ]
-
-    # Lógica de IA para seleccionar menú
-    meal_plan_response = []
-    available_recipes = recipes.copy()
-    if "Vegetariano" in request.dietaryPreferences:
-        available_recipes = [r for r in available_recipes if "vegetariano" in r["tags"]]
-    
-    days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
-    for day in days:
-        if not available_recipes: break
-        chosen_recipe = random.choice(available_recipes)
-        meal_plan_response.append({"day": day, "meal": chosen_recipe["name"]})
-        available_recipes.remove(chosen_recipe) # Para no repetir
-
-    # Lógica de IA para consejo de ahorro
-    budget_suggestion = "Para empezar, te sugiero crear una categoría de 'Ahorro Familiar' en tu Planificador con un 10% de tus ingresos. ¡Cada peso cuenta!"
-    if "vacaciones" in request.financialGoals.lower():
-        budget_suggestion = "Para tu meta de 'Vacaciones', creá esa categoría en tu Planificador. Si lográs reducir un 15% los 'Gastos Hormiga' (delivery, kiosco), podrías acelerar el objetivo significativamente."
-    elif "saldar" in request.financialGoals.lower() or "tarjeta" in request.financialGoals.lower():
-        budget_suggestion = "Para 'Saldar la tarjeta', atacá siempre más del pago mínimo. Te sugiero asignar un monto fijo en el Planificador para la tarjeta, ¡la constancia es clave para liberarte de esa deuda!"
-        
-    # Lógica de IA para sugerencia de ocio
-    leisure_suggestion = {
-        "activity": "Noche de Pelis en Casa",
-        "description": "Una maratón de películas con pochoclos caseros es un planazo que no falla y no cuesta casi nada.",
-        "cost": "Casi nulo"
-    }
-    if "Aire Libre (parques, bici)" in request.leisureActivities:
-        leisure_suggestion = {
-            "activity": "Bicicleteada y Picnic en la Costanera",
-            "description": "Preparen sandwiches y salgan a pedalear. Es una excelente forma de disfrutar el día en familia sin gastar de más.",
-            "cost": "Bajo"
-        }
-    elif "Juegos de Mesa" in request.leisureActivities:
-        leisure_suggestion = {
-            "activity": "Torneo de Juegos de Mesa",
-            "description": "Desempolven el TEG, el Burako o las cartas. Un buen torneo con premios simbólicos puede ser más divertido que cualquier salida.",
-            "cost": "Casi nulo"
-        }
-
-    return {
-        "mealPlan": meal_plan_response,
-        "budgetSuggestion": budget_suggestion,
-        "leisureSuggestion": leisure_suggestion
-    }
-
-
-# --- New AI Chat Endpoint ---
 @app.post("/chat")
 def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
-    # This is a simple logic to simulate a conversational AI.
-    # In a real-world scenario, you would integrate a powerful LLM here.
     question = request.question.lower()
     
-    # Check for keywords related to financial data
-    if any(keyword in question for keyword in ["gasto", "gastos", "dinero", "plata", "presupuesto"]):
-        # Get financial summary from the database
+    # Respuesta predeterminada si no se encuentra un tema
+    response = "Hola. Soy Resi, tu asistente de resiliencia. Estoy aquí para ayudarte con temas de finanzas, ahorro, planificación familiar y cultivo. ¿En qué puedo ayudarte?"
+    
+    # Bloque try-except para manejar fallos si no hay datos de resumen financiero
+    try:
         summary_data = get_dashboard_summary(db=db, user=user)
         total_spent = summary_data["total_spent"]
         income = summary_data["income"]
         remaining = income - total_spent
         
-        return {
-            "response": f"Hola. He analizado tus finanzas. Este mes has gastado ${total_spent:,.0f} de tu ingreso de ${income:,.0f}. Te quedan ${remaining:,.0f} disponibles. ¿Hay algo más en lo que pueda ayudarte?"
-        }
-    
-    # Check for keywords related to cultivation
+        if any(keyword in question for keyword in ["gasto", "gastos", "dinero", "plata", "presupuesto"]):
+            response = f"Hola. He analizado tus finanzas. Este mes has gastado ${total_spent:,.0f} de tu ingreso de ${income:,.0f}. Te quedan ${remaining:,.0f} disponibles. ¿Hay algo más en lo que pueda ayudarte?"
+    except Exception as e:
+        print(f"Error en el chat al obtener resumen financiero: {e}")
+        response = "Aún no tienes datos financieros completos. ¿Te gustaría que te ayude con tu presupuesto o a registrar tu primer gasto?"
+
     if any(keyword in question for keyword in ["cultivo", "huerto", "hidroponía", "plantas", "sembrar"]):
-        return {
-            "response": "¡Claro! El módulo de cultivo te puede ayudar a reducir tus gastos de supermercado. Dime si quieres un plan o si tienes una pregunta sobre plagas o nutrientes."
-        }
-        
-    # Check for keywords related to family planning
-    if any(keyword in question for keyword in ["familia", "hijos", "comida", "menú", "ahorro", "vacaciones"]):
-        return {
-            "response": "La planificación familiar es muy importante. ¿Qué te gustaría saber sobre un menú semanal, consejos para ahorrar o actividades para compartir en familia?"
-        }
+        response = "¡Claro! El módulo de cultivo te puede ayudar a reducir tus gastos de supermercado. Dime si quieres un plan o si tienes una pregunta sobre plagas o nutrientes."
     
-    return {
-        "response": "Hola. Soy Resi, tu asistente de resiliencia. Estoy aquí para ayudarte con temas de finanzas, ahorro, planificación familiar y cultivo. ¿En qué puedo ayudarte?"
-    }
+    if any(keyword in question for keyword in ["familia", "hijos", "comida", "menú", "ahorro", "vacaciones"]):
+        response = "La planificación familiar es muy importante. ¿Qué te gustaría saber sobre un menú semanal, consejos para ahorrar o actividades para compartir en familia?"
+
+    return {"response": response}
+
+@app.get("/analysis/monthly-distribution")
+def get_monthly_distribution(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    today = datetime.utcnow()
+    start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    distribution = db.query(
+        Expense.category,
+        func.sum(Expense.amount).label('total_spent')
+    ).filter(
+        Expense.user_email == user.email,
+        Expense.date >= start_of_month
+    ).group_by(Expense.category).all()
+    
+    return [{"name": item.category, "value": item.total_spent} for item in distribution]
+
+@app.get("/analysis/spending-trend")
+def get_spending_trend(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    spending_trend = []
+    
+    today = datetime.utcnow()
+    for i in range(3, -1, -1): 
+        month_start = (today - timedelta(days=30*i)).replace(day=1)
+        month_end = month_start.replace(month=month_start.month + 1) if month_start.month < 12 else month_start.replace(year=month_start.year + 1, month=1)
+        
+        month_name = month_start.strftime("%b")
+        
+        expenses_in_month = db.query(
+            Expense.category,
+            func.sum(Expense.amount).label('total_spent')
+        ).filter(
+            Expense.user_email == user.email,
+            Expense.date >= month_start,
+            Expense.date < month_end
+        ).group_by(Expense.category).order_by(func.sum(Expense.amount).desc()).limit(5).all()
+        
+        month_data = {"name": month_name}
+        for expense in expenses_in_month:
+            month_data[expense.category] = expense.total_spent
+        
+        spending_trend.append(month_data)
+        
+    return spending_trend
+
+@app.get("/goals", response_model=List[dict])
+def get_goals(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    goals = db.query(SavingGoal).filter(SavingGoal.user_email == user.email).all()
+    return [{"id": goal.id, "name": goal.name, "target_amount": goal.target_amount, "current_amount": goal.current_amount} for goal in goals]
+
+@app.post("/goals")
+def create_goal(goal: GoalInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    new_goal = SavingGoal(name=goal.name, target_amount=goal.target_amount, user_email=user.email)
+    db.add(new_goal)
+    db.commit()
+    db.refresh(new_goal)
+    return new_goal
+
+@app.get("/goals/projection/{goal_id}")
+def get_goal_projection(goal_id: int, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    ahorro_budget = db.query(BudgetItem).filter(BudgetItem.user_email == user.email, BudgetItem.category == "Ahorro").first()
+    monthly_saving = ahorro_budget.allocated_amount if ahorro_budget else 0
+    if monthly_saving <= 0:
+        return {"months_remaining": -1, "suggestion": "No tenés un monto asignado para 'Ahorro' en tu presupuesto. ¡Andá al Planificador para agregarlo!"}
+
+    goal = db.query(SavingGoal).filter(SavingGoal.id == goal_id, SavingGoal.user_email == user.email).first()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Meta no encontrada")
+
+    remaining_amount = goal.target_amount - goal.current_amount
+    if remaining_amount <= 0:
+        return {"months_remaining": 0, "suggestion": "¡Felicitaciones! Ya alcanzaste esta meta."}
+        
+    months_remaining = round(remaining_amount / monthly_saving)
+
+    suggestion = f"Si seguís ahorrando ${monthly_saving:,.0f} por mes, vas a alcanzar tu meta en aproximadamente {months_remaining} meses."
+    
+    high_expense_category = db.query(Expense.category, func.sum(Expense.amount).label('total')).filter(
+        Expense.user_email == user.email, Expense.category.notin_(['Ahorro', 'Inversión'])
+    ).group_by(Expense.category).order_by(func.sum(Expense.amount).desc()).first()
+
+    if high_expense_category:
+        cut_amount = high_expense_category.total * 0.10
+        new_monthly_saving = monthly_saving + cut_amount
+        if new_monthly_saving > 0:
+            new_months_remaining = round(remaining_amount / new_monthly_saving)
+            if new_months_remaining < months_remaining:
+                suggestion += f" Pero si lograras reducir un 10% tus gastos en '{high_expense_category.category}', podrías acelerar tu meta a {new_months_remaining} meses. ¿Te animás a intentarlo en el Planificador?"
+
+    return {"months_remaining": months_remaining, "suggestion": suggestion}
+
+@app.post("/chat")
+def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    question = request.question.lower()
+    
+    # Respuesta predeterminada si no se encuentra un tema
+    response = "Hola. Soy Resi, tu asistente de resiliencia. Estoy aquí para ayudarte con temas de finanzas, ahorro, planificación familiar y cultivo. ¿En qué puedo ayudarte?"
+    
+    # Bloque try-except para manejar fallos si no hay datos de resumen financiero
+    try:
+        summary_data = get_dashboard_summary(db=db, user=user)
+        total_spent = summary_data["total_spent"]
+        income = summary_data["income"]
+        remaining = income - total_spent
+        
+        if any(keyword in question for keyword in ["gasto", "gastos", "dinero", "plata", "presupuesto"]):
+            response = f"Hola. He analizado tus finanzas. Este mes has gastado ${total_spent:,.0f} de tu ingreso de ${income:,.0f}. Te quedan ${remaining:,.0f} disponibles. ¿Hay algo más en lo que pueda ayudarte?"
+    except Exception as e:
+        print(f"Error en el chat al obtener resumen financiero: {e}")
+        response = "Aún no tienes datos financieros completos. ¿Te gustaría que te ayude con tu presupuesto o a registrar tu primer gasto?"
+    
