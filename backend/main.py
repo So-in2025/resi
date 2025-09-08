@@ -18,6 +18,9 @@ from pydantic import BaseModel
 from typing import List, Optional
 # Agregamos pydub para procesar el audio
 from pydub import AudioSegment 
+# NUEVAS IMPORTACIONES PARA EL LLM
+import google.generativeai as genai
+import textwrap
 
 # --- CONFIGURACIÓN DE LA BASE DE DATOS (Producción y Local) ---
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -82,6 +85,30 @@ origins = [
     "https://resi-argentina.vercel.app",
 ]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+# --- CONFIGURACIÓN DE GOOGLE GEMINI (LLM) ---
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+# Instrucciones para el modelo (el "prompt" del sistema)
+system_prompt = textwrap.dedent("""
+Eres Resi, un asistente digital amigable y motivador diseñado para ayudar a ciudadanos argentinos promedio a alcanzar la resiliencia económica y alimentaria.
+Tus respuestas deben ser concisas, claras y fáciles de entender, evitando jerga técnica.
+Debes basar tus consejos en los siguientes pilares:
+1.  **Control Financiero:** Gestión de gastos, ahorro, planificación presupuestaria.
+2.  **Resiliencia Alimentaria:** Cultivo de alimentos en casa (hidroponía, huerto orgánico), consejos de nutrición simple para ahorrar.
+3.  **Bienestar Familiar:** Ideas de ocio de bajo costo, planificación familiar integral.
+Si el usuario pregunta algo que no está relacionado con estos tres pilares, responde de forma amigable que tu especialidad es la resiliencia y que no puedes ayudarlo con ese tema.
+""")
+
+generation_config = {
+  "temperature": 0.5,
+  "top_p": 1,
+  "top_k": 1,
+}
+
+model = genai.GenerativeModel(model_name="gemini-1.5-flash-latest",
+                              system_instruction=system_prompt,
+                              generation_config=generation_config)
 
 # --- MODELOS DE DATOS DE ENTRADA (Pydantic) ---
 class TextInput(BaseModel): text: str
@@ -1249,6 +1276,33 @@ def get_goal_projection(goal_id: int, db: Session = Depends(get_db), user: User 
 
 @app.post("/chat")
 def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    question = request.question.lower()
+    
+    # Intenta obtener un resumen de gastos, si está disponible
+    summary_text = ""
+    try:
+        summary_data = get_dashboard_summary(db=db, user=user)
+        total_spent = summary_data["total_spent"]
+        income = summary_data["income"]
+        remaining = income - total_spent
+        summary_text = f"Resumen financiero del usuario: Ingreso ${income:,.0f}, gastó ${total_spent:,.0f}, le quedan ${remaining:,.0f}."
+    except Exception as e:
+        summary_text = "El usuario aún no tiene datos financieros registrados."
+    
+    # Crea un chat con el modelo y envía el historial y la nueva pregunta
+    chat = model.start_chat(history=[
+        {"role": "user", "parts": [summary_text]},
+        {"role": "model", "parts": ["Entendido. ¿En qué puedo ayudarte?"]}
+    ])
+    
+    try:
+        response_model = chat.send_message(question)
+        response = response_model.text
+    except Exception as e:
+        print(f"Error al llamar a Gemini: {e}")
+        response = "Lo siento, no pude procesar tu solicitud en este momento. Intenta de nuevo más tarde."
+
+    return {"response": response}
     question = request.question.lower()
     
     # Respuesta predeterminada si no se encuentra un tema
