@@ -15,7 +15,9 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import List, Optional
 import os
-
+# --- New Pydantic Model for Chat Input ---
+class AIChatInput(BaseModel):
+    question: str
 # --- CONFIGURACIÓN DE LA BASE DE DATOS (Producción y Local) ---
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -611,4 +613,40 @@ def generate_family_plan(request: FamilyPlanRequest, user: User = Depends(get_us
         "mealPlan": meal_plan_response,
         "budgetSuggestion": budget_suggestion,
         "leisureSuggestion": leisure_suggestion
+    }
+
+
+# --- New AI Chat Endpoint ---
+@app.post("/chat")
+def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    # This is a simple logic to simulate a conversational AI.
+    # In a real-world scenario, you would integrate a powerful LLM here.
+    question = request.question.lower()
+    
+    # Check for keywords related to financial data
+    if any(keyword in question for keyword in ["gasto", "gastos", "dinero", "plata", "presupuesto"]):
+        # Get financial summary from the database
+        summary_data = get_dashboard_summary(db=db, user=user)
+        total_spent = summary_data["total_spent"]
+        income = summary_data["income"]
+        remaining = income - total_spent
+        
+        return {
+            "response": f"Hola. He analizado tus finanzas. Este mes has gastado ${total_spent:,.0f} de tu ingreso de ${income:,.0f}. Te quedan ${remaining:,.0f} disponibles. ¿Hay algo más en lo que pueda ayudarte?"
+        }
+    
+    # Check for keywords related to cultivation
+    if any(keyword in question for keyword in ["cultivo", "huerto", "hidroponía", "plantas", "sembrar"]):
+        return {
+            "response": "¡Claro! El módulo de cultivo te puede ayudar a reducir tus gastos de supermercado. Dime si quieres un plan o si tienes una pregunta sobre plagas o nutrientes."
+        }
+        
+    # Check for keywords related to family planning
+    if any(keyword in question for keyword in ["familia", "hijos", "comida", "menú", "ahorro", "vacaciones"]):
+        return {
+            "response": "La planificación familiar es muy importante. ¿Qué te gustaría saber sobre un menú semanal, consejos para ahorrar o actividades para compartir en familia?"
+        }
+    
+    return {
+        "response": "Hola. Soy Resi, tu asistente de resiliencia. Estoy aquí para ayudarte con temas de finanzas, ahorro, planificación familiar y cultivo. ¿En qué puedo ayudarte?"
     }
