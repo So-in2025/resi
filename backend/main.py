@@ -16,12 +16,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import List, Optional
-
 # Agregamos pydub para procesar el audio
 from pydub import AudioSegment 
 
 # --- CONFIGURACIÓN DE LA BASE DE DATOS (Producción y Local) ---
-
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL is None:
     print("No se encontró DATABASE_URL, usando SQLite local.")
@@ -232,16 +230,16 @@ async def onboarding_complete(onboarding_data: OnboardingData, db: Session = Dep
 
 @app.post("/transcribe")
 async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
-    # --- CORRECCIÓN: Convertir MP3 a WAV antes de enviar a Google Cloud ---
+    # --- CORRECCIÓN: Convertir WEBM a WAV antes de enviar a Google Cloud ---
     try:
-        # Leer el contenido del archivo subido (MP3)
-        mp3_audio = await audio_file.read()
-        
-        # Convertir de MP3 a WAV en memoria
-        audio = AudioSegment.from_mp3(io.BytesIO(mp3_audio))
+        # Leer el contenido del archivo subido (WebM)
+        webm_audio = await audio_file.read()
+
+        # Convertir de WebM a WAV en memoria
+        audio = AudioSegment.from_file(io.BytesIO(webm_audio), format="webm") # <-- CAMBIO CLAVE
         wav_audio_content = io.BytesIO()
         audio.export(wav_audio_content, format="wav")
-        
+
         # Rewind the stream to the beginning
         wav_audio_content.seek(0)
 
@@ -253,7 +251,7 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Dep
             enable_automatic_punctuation=True
         )
         audio_source = speech.RecognitionAudio(content=wav_audio_content.read())
-        
+
         # Llama a la API de Google Cloud Speech-to-Text
         response = speech_client.recognize(config=config, audio=audio_source)
         transcripts = [result.alternatives[0].transcript for result in response.results]
@@ -261,7 +259,7 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Dep
         if not transcripts:
             raise HTTPException(status_code=400, detail="No se pudo entender el audio.")
         full_transcript = " ".join(transcripts)
-        
+
         parsed_data = parse_expense_from_text(full_transcript, db, user.email)
         if parsed_data:
             new_expense = Expense(user_email=user.email, **parsed_data)
