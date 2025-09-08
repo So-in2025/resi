@@ -1264,4 +1264,24 @@ def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: User = De
         if any(keyword in question for keyword in ["gasto", "gastos", "dinero", "plata", "presupuesto"]):
             response = f"Hola. He analizado tus finanzas. Este mes has gastado ${total_spent:,.0f} de tu ingreso de ${income:,.0f}. Te quedan ${remaining:,.0f} disponibles. ¿Hay algo más en lo que pueda ayudarte?"
     except Exception as e:
+        # CORRECCIÓN: Aseguramos que siempre haya una respuesta válida
+        response = "Lo siento, aún no tengo suficiente información para un resumen. ¿Probaste a registrar algunos gastos?"
+    
+    # La respuesta ahora siempre será un JSON válido
+    return {"response": response}       
+    question = request.question.lower()
+    
+    # Respuesta predeterminada si no se encuentra un tema
+    response = "Hola. Soy Resi, tu asistente de resiliencia. Estoy aquí para ayudarte con temas de finanzas, ahorro, planificación familiar y cultivo. ¿En qué puedo ayudarte?"
+    
+    # Bloque try-except para manejar fallos si no hay datos de resumen financiero
+    try:
+        summary_data = get_dashboard_summary(db=db, user=user)
+        total_spent = summary_data["total_spent"]
+        income = summary_data["income"]
+        remaining = income - total_spent
+        
+        if any(keyword in question for keyword in ["gasto", "gastos", "dinero", "plata", "presupuesto"]):
+            response = f"Hola. He analizado tus finanzas. Este mes has gastado ${total_spent:,.0f} de tu ingreso de ${income:,.0f}. Te quedan ${remaining:,.0f} disponibles. ¿Hay algo más en lo que pueda ayudarte?"
+    except Exception as e:
         pass
