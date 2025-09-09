@@ -1,9 +1,11 @@
 # En: backend/routers/cultivation.py
-
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 import random
-from .. import main as main_app # Importamos para acceder a modelos y dependencias
+
+# Importamos desde los nuevos archivos compartidos
+from ..database import User
+from ..schemas import CultivationPlanRequest, AIChatInput, ValidateParamsRequest
+from ..dependencies import get_user_or_create
 
 router = APIRouter(
     prefix="/cultivation",
@@ -11,9 +13,8 @@ router = APIRouter(
 )
 
 @router.post("/generate-plan")
-def generate_cultivation_plan(request: main_app.CultivationPlanRequest, user: main_app.User = Depends(main_app.get_user_or_create)):
+def generate_cultivation_plan(request: CultivationPlanRequest, user: User = Depends(get_user_or_create)):
     crop, system, materials, tips = "", "", "", ""
-
     if request.experience == 'principiante':
         tips += "Como estás empezando, nos enfocaremos en cultivos resistentes y de rápido crecimiento. ¡El éxito inicial es clave para la motivación! "
         if request.initialBudget < 15000:
@@ -29,12 +30,10 @@ def generate_cultivation_plan(request: main_app.CultivationPlanRequest, user: ma
         system = "Sistema NFT vertical para optimizar espacio" if request.method == 'hydroponics' else "Huerto en tierra con sistema de riego por goteo"
         materials = "Estructura vertical, bomba de mayor caudal, medidores de pH/EC digitales, abonos orgánicos específicos."
         crop = "Pimientos, Tomates premium, Pepinos"
-
     if request.location in ['mendoza', 'cordoba']:
         tips += f"En {request.location.capitalize()}, el sol es fuerte. Asegurá una media sombra para las horas de mayor insolación en verano."
     else:
         tips += f"En {request.location.capitalize()}, la humedad puede ser un factor. Garantizá una buena ventilación para prevenir la aparición de hongos."
-        
     response_plan = {
         "crop": crop, "system": system, "materials": materials,
         "projectedSavings": f"Con este plan, podrías ahorrar un estimado de ${random.randint(5000, 15000):,} al mes en la verdulería.",
@@ -44,10 +43,9 @@ def generate_cultivation_plan(request: main_app.CultivationPlanRequest, user: ma
     return response_plan
 
 @router.post("/chat")
-def cultivation_chat(request: main_app.AIChatInput, user: main_app.User = Depends(main_app.get_user_or_create)):
+def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_create)):
     question = request.question.lower()
     response, image_prompt = "", ""
-
     if "plaga" in question or "bicho" in question:
         response = "Para plagas como el pulgón, una solución de agua con jabón potásico es muy efectiva y orgánica. Aplicálo cada 3 días al atardecer."
         image_prompt = "Fotografía macro de pulgones en una hoja de tomate."
@@ -60,14 +58,12 @@ def cultivation_chat(request: main_app.AIChatInput, user: main_app.User = Depend
     else:
         response = "Es una excelente pregunta. Para darte una respuesta más precisa, ¿podrías darme más detalle sobre tu planta?"
         image_prompt = "Icono de un cerebro de IA con signos de pregunta."
-
     return {"response": response, "imagePrompt": image_prompt}
 
 @router.post("/validate-parameters")
-def validate_cultivation_parameters(request: main_app.ValidateParamsRequest, user: main_app.User = Depends(main_app.get_user_or_create)):
+def validate_cultivation_parameters(request: ValidateParamsRequest, user: User = Depends(get_user_or_create)):
     is_valid = True
     advice = "¡Tus parámetros están excelentes! Sigue así para un crecimiento óptimo."
-
     if request.method == 'hydroponics':
         if request.ph is not None and not (5.5 <= request.ph <= 6.5):
             is_valid = False
@@ -78,7 +74,6 @@ def validate_cultivation_parameters(request: main_app.ValidateParamsRequest, use
         elif request.temp is not None and not (18 <= request.temp <= 24):
             is_valid = False
             advice = "Resi: La temperatura de la solución no es la ideal (18-24°C). Temperaturas altas reducen el oxígeno y favorecen enfermedades."
-    
     elif request.method == 'organic':
         if request.ph is not None and not (6.0 <= request.ph <= 7.0):
             is_valid = False
@@ -86,5 +81,5 @@ def validate_cultivation_parameters(request: main_app.ValidateParamsRequest, use
         elif request.soilMoisture is not None and not (30 <= request.soilMoisture <= 60):
             is_valid = False
             advice = "Resi: La humedad del suelo no es la ideal (30%-60%). Asegúrate de regar correctamente para evitar estrés hídrico o pudrición de raíces."
-
     return {"isValid": is_valid, "advice": advice}
+

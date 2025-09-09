@@ -1,8 +1,10 @@
 # En: backend/routers/family.py
-
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from .. import main as main_app # Importamos para acceder a modelos y dependencias
+
+# Importamos desde los nuevos archivos compartidos
+from ..database import User
+from ..schemas import FamilyPlanRequest
+from ..dependencies import get_user_or_create
 
 router = APIRouter(
     prefix="/family-plan",
@@ -10,7 +12,8 @@ router = APIRouter(
 )
 
 @router.post("/generate")
-def generate_family_plan(request: main_app.FamilyPlanRequest, user: main_app.User = Depends(main_app.get_user_or_create)):
+def generate_family_plan(request: FamilyPlanRequest, user: User = Depends(get_user_or_create)):
+    # La lógica de esta función no cambia
     meal_plan = [
         {"day": "Lunes", "meal": "Guiso de Lentejas Power"},
         {"day": "Martes", "meal": "Tarta de Espinaca y Ricota"},
@@ -34,3 +37,4 @@ def generate_family_plan(request: main_app.FamilyPlanRequest, user: main_app.Use
         "budgetSuggestion": budget_suggestion,
         "leisureSuggestion": leisure_suggestion
     }
+
