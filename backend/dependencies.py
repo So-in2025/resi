@@ -35,6 +35,7 @@ def get_user_or_create(user_email: str = Depends(get_current_user_email), db: Se
         return new_user
     return user
 
+# --- FUNCIÓN ACTUALIZADA ---
 async def parse_expense_with_gemini(text: str, db: Session, user_email: str) -> Optional[dict]:
     budget_items = db.query(BudgetItem.category).filter(BudgetItem.user_email == user_email, BudgetItem.category != "_income").all()
     user_categories = [item[0] for item in budget_items]
@@ -44,13 +45,20 @@ async def parse_expense_with_gemini(text: str, db: Session, user_email: str) -> 
         "Vestimenta", "Ahorro", "Inversión", "Otros"
     ] + user_categories))
 
+    # ---- PROMPT MEJORADO Y MÁS ESTRICTO ----
     system_prompt_expense = textwrap.dedent(f"""
-        Eres un asistente experto en finanzas para un usuario en Argentina.
-        Tu tarea es analizar una frase que describe un gasto y extraer los detalles en un formato JSON estricto.
-        La descripción debe ser la frase original del usuario, sin alteraciones.
-        El monto debe ser un número, sin símbolos de moneda.
-        La categoría DEBE ser una de la siguiente lista: {valid_categories}.
-        Si la frase no encaja claramente en ninguna categoría, DEBES usar "Otros". No inventes categorías nuevas.
+        Tu única tarea es analizar una frase de un usuario en Argentina sobre un gasto y devolver un objeto JSON con dos claves: "amount" y "category".
+        
+        - El "amount" debe ser un número (float o int), sin símbolos de moneda.
+        - La "category" DEBE ser una de esta lista: {valid_categories}. No inventes categorías. Si no estás seguro, usa "Otros".
+        - NO incluyas la clave "description" en tu respuesta JSON.
+        - Responde únicamente con el JSON y nada más.
+
+        Ejemplo de respuesta perfecta:
+        {{
+          "amount": 5000,
+          "category": "Supermercado"
+        }}
     """)
 
     model_expense = genai.GenerativeModel(
@@ -58,12 +66,23 @@ async def parse_expense_with_gemini(text: str, db: Session, user_email: str) -> 
         system_instruction=system_prompt_expense,
         generation_config={"response_mime_type": "application/json"}
     )
+    
     try:
-        response = await model_expense.generate_content_async(f"Analiza: '{text}'")
-        expense_data = json.loads(response.text)
+        response = await model_expense.generate_content_async(f"Analiza esta frase: '{text}'")
+        parsed_json = json.loads(response.text)
+
+        # Creamos el diccionario de datos nosotros mismos para máxima seguridad
+        expense_data = {
+            "amount": parsed_json.get("amount"),
+            "category": parsed_json.get("category"),
+            "description": text  # Usamos el texto original siempre
+        }
+        
+        # Validamos con Pydantic
         validated_data = ExpenseData(**expense_data)
-        validated_data.description = text
+        
         return validated_data.dict()
+        
     except Exception as e:
-        print(f"Error al procesar con Gemini para gastos: {e}")
+        print(f"Error al procesar con Gemini o validar los datos: {e}")
         return None

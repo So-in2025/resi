@@ -1,3 +1,4 @@
+// En: frontend/src/hooks/useResiVoice.ts
 'use client';
 
 import { useEffect, useCallback, useState, useRef } from 'react';
@@ -6,7 +7,7 @@ import toast from 'react-hot-toast';
 import apiClient from '@/lib/apiClient';
 import { useSession } from 'next-auth/react';
 
-// --- LÓGICA DE CONSEJOS (SIN CAMBIOS) ---
+// --- LISTA COMPLETA DE CONSEJOS RESTAURADA ---
 const consejos = [
   "Recordá registrar hasta el gasto más chiquito. ¡Esos son los que más suman a fin de mes!",
   "Una vez por semana, tomate 5 minutos para chusmear tu 'Historial'. Te va a sorprender lo que podés descubrir.",
@@ -39,48 +40,52 @@ const shuffleConsejos = () => {
   consejoIndex = 0;
 };
 
-// --- EL HOOK PRINCIPAL DE VOZ ---
 export const useResiVoice = () => {
   const { data: session } = useSession();
   const [actionToPerform, setActionToPerform] = useState<{ type: string; payload?: any } | null>(null);
   const [hasSpokenWelcome, setHasSpokenWelcome] = useState(false);
-  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [speaking, setSpeaking] = useState(false);
   
   const tipIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const getVoices = () => setAvailableVoices(window.speechSynthesis.getVoices());
-      getVoices();
-      window.speechSynthesis.onvoiceschanged = getVoices;
+  // NUEVA FUNCIÓN SPEAK MÁS ROBUSTA
+  const speak = useCallback((text: string) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    const performSpeak = () => {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      utterance.onstart = () => setSpeaking(true);
+      utterance.onend = () => setSpeaking(false);
+      utterance.onerror = (e) => {
+        console.error("Error en SpeechSynthesis:", e);
+        setSpeaking(false);
+      };
+      
+      const voices = window.speechSynthesis.getVoices();
+      const googleSpanishVoice = voices.find(v => v.lang.startsWith('es') && v.name.includes('Google'));
+      const nativeSpanishVoice = voices.find(v => v.lang.startsWith('es'));
+
+      utterance.voice = googleSpanishVoice || nativeSpanishVoice || voices[0];
+      utterance.lang = utterance.voice?.lang || 'es-AR';
+      utterance.rate = 1.1;
+      utterance.pitch = 1.2;
+      window.speechSynthesis.speak(utterance);
+    };
+
+    // Esta es la clave: si las voces no están listas, esperamos el evento onvoiceschanged.
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.onvoiceschanged = performSpeak;
+    } else {
+      performSpeak();
     }
   }, []);
-
-  const speak = useCallback((text: string) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis || availableVoices.length === 0) return;
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    utterance.onstart = () => setSpeaking(true);
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
-    
-    const googleSpanishVoice = availableVoices.find(v => v.lang.startsWith('es') && v.name.includes('Google'));
-    const nativeSpanishVoice = availableVoices.find(v => v.lang.startsWith('es'));
-
-    utterance.voice = googleSpanishVoice || nativeSpanishVoice || availableVoices[0];
-    utterance.lang = utterance.voice?.lang || 'es-AR';
-    utterance.rate = 1.1;
-    utterance.pitch = 1.2;
-    window.speechSynthesis.speak(utterance);
-  }, [availableVoices]);
 
   const { transcript, finalTranscript, listening, resetTranscript, browserSupportsSpeechRecognition } = useSpeechRecognition();
 
   const startListening = useCallback(() => {
-    if (speaking) { // No escuchar si Resi está hablando
+    if (speaking) {
       window.speechSynthesis.cancel();
       setSpeaking(false);
     }
@@ -107,21 +112,20 @@ export const useResiVoice = () => {
 
       const lowerCaseCommand = command.toLowerCase();
 
-      // Lógica para registrar gastos por voz
       if (lowerCaseCommand.includes("registrar") || lowerCaseCommand.includes("gasté") || lowerCaseCommand.includes("anotá")) {
         setActionToPerform({ type: 'OPEN_ADD_EXPENSE_MODAL_WITH_TEXT', payload: command });
         speak('Entendido. Revisá los datos y guardá el gasto.');
       } else {
-        // Lógica para chatear con la IA
         const toastId = toast.loading("Resi está pensando...");
         try {
           const response = await apiClient.post<{ response: string }>('/chat', { question: command }, {
             headers: { 'Authorization': `Bearer ${session.user.email}` }
           });
-          speak(response.data.response);
+          speak(response.data.response); // Ahora esta llamada funcionará
           toast.dismiss(toastId);
         } catch (error) {
           console.error("Error en el chat con IA:", error);
+          speak("Disculpa, tuve un problema para procesar tu pregunta.");
           toast.error("No pude procesar tu pregunta.", { id: toastId });
         }
       }
@@ -142,7 +146,7 @@ export const useResiVoice = () => {
                 speak(shuffledConsejos[consejoIndex]);
                 consejoIndex++;
             }
-        }, 45000);
+        }, 45000); // 45 segundos
     };
     
     if (hasSpokenWelcome) startInterval();

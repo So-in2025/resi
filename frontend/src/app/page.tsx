@@ -9,14 +9,19 @@ import AddExpenseForm from "@/components/AddExpenseForm";
 import { useSession } from "next-auth/react";
 import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
-import VoiceChat from "@/components/VoiceChat";
 import CultivationModule from "@/components/CultivationModule";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import Header from "@/components/Header";
-import FinanceModule from '@/components/FinanceModule'; 
+import FinanceModule from '@/components/FinanceModule';
 import FamilyPlannerModule from "@/components/FamilyPlannerModule";
 import apiClient from "@/lib/apiClient";
 import { useResiVoice } from "@/hooks/useResiVoice";
+import dynamic from 'next/dynamic';
+
+const VoiceChatDinamic = dynamic(() => import('@/components/VoiceChat'), {
+  ssr: false,
+  loading: () => <div className="w-16 h-16 rounded-full bg-gray-700 animate-pulse" />
+});
 
 const HeroSection = () => (
   <div className="text-center mb-12 w-full max-w-4xl">
@@ -114,7 +119,6 @@ export default function HomePage() {
   return (
     <>
       <Header refreshTrigger={dataRefreshKey} />
-      {/* CORRECCIÓN ESTÉTICA: Se añade bg-gray-900 al div principal y se elimina el div wrapper del Sidebar */}
       <div className="flex bg-gray-900">
         <Sidebar 
           isOpen={isSidebarOpen} 
@@ -212,7 +216,7 @@ export default function HomePage() {
           </div>
 
           <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-4">
-            <VoiceChat />
+            <VoiceChatDinamic />
             <FloatingActionButton onClick={() => setIsModalOpen(true)} />
           </div>
 
@@ -224,4 +228,3 @@ export default function HomePage() {
     </>
   );
 }
-
