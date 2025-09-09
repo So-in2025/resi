@@ -18,7 +18,7 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
   const [textInput, setTextInput] = useState('');
   const [feedback, setFeedback] = useState('');
 
-  // Usamos useRef para mantener la referencia al MediaRecorder entre renderizados
+  // CORRECCIÓN: Se reemplaza mic-recorder-to-mp3 por useRefs para manejar la API nativa MediaRecorder.
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
 
@@ -28,19 +28,20 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
     }
   }, [initialText]);
 
+  // CORRECCIÓN: Nueva función para iniciar la grabación con MediaRecorder.
   const startRecording = async () => {
     if (!session) {
       setFeedback('Inicia sesión para grabar un gasto.');
       return;
     }
     try {
-      // Pedimos acceso al micrófono del usuario
+      // Pedimos acceso al micrófono del usuario.
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
       // Creamos una nueva instancia de MediaRecorder. Por defecto, graba en formato webm.
       mediaRecorder.current = new MediaRecorder(stream);
       
-      // Cuando haya datos de audio disponibles, los guardamos en nuestro array de chunks.
+      // Cuando haya datos de audio disponibles, los guardamos en nuestro array.
       mediaRecorder.current.ondataavailable = (event) => {
         audioChunks.current.push(event.data);
       };
@@ -48,7 +49,7 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
       // Cuando se detiene la grabación, llamamos a la función para enviar el audio.
       mediaRecorder.current.onstop = handleSendAudio;
       
-      // Limpiamos chunks anteriores y empezamos a grabar.
+      // Limpiamos chunks de grabaciones anteriores y empezamos a grabar.
       audioChunks.current = [];
       mediaRecorder.current.start();
       setIsRecording(true);
@@ -56,10 +57,11 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
 
     } catch (error) {
       console.error("Error al acceder al micrófono:", error);
-      toast.error("No se pudo acceder al micrófono. Revisa los permisos.");
+      toast.error("No se pudo acceder al micrófono. Revisa los permisos en tu navegador.");
     }
   };
 
+  // CORRECCIÓN: Nueva función para detener la grabación.
   const stopRecording = () => {
     if (mediaRecorder.current && mediaRecorder.current.state === 'recording') {
       mediaRecorder.current.stop();
@@ -70,6 +72,7 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
     }
   };
 
+  // CORRECCIÓN: Nueva función que se ejecuta al detener la grabación.
   const handleSendAudio = async () => {
     if (!session?.user?.email) {
       setFeedback("Error de sesión.");
@@ -79,6 +82,7 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
     setIsLoading(true);
 
     // Creamos un único archivo de audio a partir de los fragmentos grabados.
+    // El tipo es 'audio/webm', que es lo que nuestro backend ahora espera.
     const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
     const formData = new FormData();
     formData.append('audio_file', audioBlob, 'gasto.webm');
@@ -183,3 +187,4 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
     </div>
   );
 }
+

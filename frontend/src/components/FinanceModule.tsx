@@ -11,6 +11,7 @@ import { useSession, signIn } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import apiClient from '@/lib/apiClient';
 
+// --- COMPONENTES INTERNOS Y TIPOS (SIN CAMBIOS) ---
 interface TabButtonProps {
     isActive: boolean;
     onClick: () => void;
@@ -21,8 +22,6 @@ interface TabButtonProps {
 const TabButton = ({ isActive, onClick, children, icon: Icon }: TabButtonProps) => (
   <button
     onClick={onClick}
-    // CORRECCIÓN ESTÉTICA: Se elimina 'flex-1' para permitir que los botones se apilen en móviles (wrap)
-    // y se añade 'md:flex-1' para que en pantallas medianas y grandes sí ocupen el mismo espacio.
     className={`md:flex-1 flex items-center justify-center md:justify-start gap-2 px-4 py-3 font-semibold rounded-t-lg transition-colors text-sm md:text-base ${
       isActive ? 'bg-gray-700 text-green-400 border-b-2 border-green-400' : 'bg-gray-800 text-gray-400 hover:bg-gray-700/50'
     }`}
@@ -60,11 +59,14 @@ export interface FinancialData {
   goals: any[];
 }
 
+// CORRECCIÓN BUCLE: Añadimos la prop 'isOpen' para saber cuándo cargar los datos.
 interface FinanceModuleProps {
     onDataLoaded: (data: { supermarketSpending: number }) => void;
+    isOpen: boolean; 
 }
 
-export default function FinanceModule({ onDataLoaded }: FinanceModuleProps) {
+// --- COMPONENTE PRINCIPAL ---
+export default function FinanceModule({ onDataLoaded, isOpen }: FinanceModuleProps) {
   const { data: session, status } = useSession();
   const [activeTab, setActiveTab] = useState('planificador');
   const [financialData, setFinancialData] = useState<FinancialData | null>(null);
@@ -101,14 +103,18 @@ export default function FinanceModule({ onDataLoaded }: FinanceModuleProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [session, status, onDataLoaded]);
+  // CORRECCIÓN BUCLE: Se elimina 'onDataLoaded' de las dependencias para romper el bucle.
+  }, [session, status]);
 
   useEffect(() => {
-    if (status === 'authenticated') {
+    // CORRECCIÓN BUCLE: Solo se ejecuta la carga de datos si el acordeón está abierto.
+    if (status === 'authenticated' && isOpen) {
         fetchAllData();
     }
-  }, [status, fetchAllData]);
+  // CORRECCIÓN BUCLE: Ahora la dependencia principal es 'isOpen'.
+  }, [status, isOpen, fetchAllData]);
 
+  // Si el usuario no está logueado, se muestra el mensaje para ingresar.
   if (status === 'unauthenticated') {
     return (
         <div className="text-center p-8">
@@ -121,17 +127,23 @@ export default function FinanceModule({ onDataLoaded }: FinanceModuleProps) {
     );
   }
 
-  if (isLoading || status === 'loading') {
+  // Muestra el mensaje de carga solo si el acordeón está abierto y los datos aún no están listos.
+  if (isLoading && isOpen) {
     return <div className="flex items-center justify-center h-64"><FaSync className="animate-spin text-4xl text-gray-400" /><p className="ml-4 text-gray-400">Analizando tus finanzas...</p></div>;
   }
 
   if (error) {
     return <div className="flex items-center justify-center h-64 text-red-400"><FaExclamationCircle className="text-4xl" /><p className="ml-4">{error}</p></div>;
   }
+  
+  // Si no está cargando y no hay datos (porque el acordeón no se abrió), no muestra nada.
+  if (!financialData) {
+    return null; 
+  }
 
   return (
     <div className="w-full bg-gray-800 rounded-lg p-2 md:p-4">
-      {financialData?.resilienceSummary && <ResilienceSummary summary={financialData.resilienceSummary} />}
+      {financialData.resilienceSummary && <ResilienceSummary summary={financialData.resilienceSummary} />}
       <div className="flex flex-wrap border-b border-gray-700">
         <TabButton isActive={activeTab === 'planificador'} onClick={() => setActiveTab('planificador')} icon={FaMoneyBillWave}>Planificador</TabButton>
         <TabButton isActive={activeTab === 'metas'} onClick={() => setActiveTab('metas')} icon={FaBullseye}>Metas de Ahorro</TabButton>
@@ -139,11 +151,12 @@ export default function FinanceModule({ onDataLoaded }: FinanceModuleProps) {
         <TabButton isActive={activeTab === 'analisis'} onClick={() => setActiveTab('analisis')} icon={FaChartLine}>Análisis</TabButton>
       </div>
       <div className="mt-4 md:mt-6 p-2">
-        {activeTab === 'planificador' && <Planner budgetData={financialData?.budget} onBudgetUpdate={fetchAllData} />}
-        {activeTab === 'metas' && <SavingGoals goalsData={financialData?.goals || []} onGoalUpdate={fetchAllData} />}
-        {activeTab === 'historial' && <History expensesData={financialData?.expenses || []} onExpenseUpdate={fetchAllData} />}
+        {activeTab === 'planificador' && <Planner budgetData={financialData.budget} onBudgetUpdate={fetchAllData} />}
+        {activeTab === 'metas' && <SavingGoals goalsData={financialData.goals || []} onGoalUpdate={fetchAllData} />}
+        {activeTab === 'historial' && <History expensesData={financialData.expenses || []} onExpenseUpdate={fetchAllData} />}
         {activeTab === 'analisis' && <Analysis />}
       </div>
     </div>
   );
 }
+

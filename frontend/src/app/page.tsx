@@ -7,8 +7,9 @@ import FloatingActionButton from "@/components/FloatingActionButton";
 import Modal from "@/components/Modal";
 import AddExpenseForm from "@/components/AddExpenseForm";
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react"; // CORRECCIÓN BUCLE: Se importa useCallback
 import Sidebar from "@/components/Sidebar";
+import VoiceChat from "@/components/VoiceChat";
 import CultivationModule from "@/components/CultivationModule";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import Header from "@/components/Header";
@@ -16,9 +17,7 @@ import FinanceModule from '@/components/FinanceModule';
 import FamilyPlannerModule from "@/components/FamilyPlannerModule";
 import apiClient from "@/lib/apiClient";
 import { useResiVoice } from "@/hooks/useResiVoice";
-import VoiceChat from "@/components/VoiceChat"; // Importamos el componente del micrófono
 
-// --- SUBCOMPONENTES (SIN CAMBIOS) ---
 const HeroSection = () => (
   <div className="text-center mb-12 w-full max-w-4xl">
     <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4">
@@ -30,20 +29,18 @@ const HeroSection = () => (
   </div>
 );
 
-// --- COMPONENTE PRINCIPAL DE LA PÁGINA ---
 export default function HomePage() {
   const { data: session, status } = useSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [initialExpenseText, setInitialExpenseText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [openAccordionId, setOpenAccordionId] = useState<string | null>('mis-finanzas');
+  const [openAccordionId, setOpenAccordionId] = useState<string | null>(null); // Inicia cerrado
   const [selectedGardeningMethod, setSelectedGardeningMethod] = useState('hydroponics');
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [sharedFinancialData, setSharedFinancialData] = useState<{ supermarketSpending: number } | null>(null);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
-  // CORRECCIÓN: Usamos el hook de voz aquí en el orquestador.
   const { actionToPerform, clearAction } = useResiVoice();
 
   useEffect(() => {
@@ -63,10 +60,20 @@ export default function HomePage() {
           const response = await apiClient.get('/check-onboarding', {
             headers: { 'Authorization': `Bearer ${session.user.email}` },
           });
-          setHasCompletedOnboarding(response.data.onboarding_completed);
-        } catch (error) { 
+          const completed = response.data.onboarding_completed;
+          setHasCompletedOnboarding(completed);
+          // Si completó el onboarding, abrimos el acordeón de finanzas por defecto
+          if (completed) {
+            setOpenAccordionId('mis-finanzas');
+          } else {
+            setOpenAccordionId('primeros-pasos');
+          }
+        } catch (error) {
           console.error("Error al chequear el estado de onboarding:", error);
+          setOpenAccordionId('primeros-pasos'); // Si hay error, mostrar onboarding
         }
+      } else {
+        setOpenAccordionId('primeros-pasos'); // Si no hay sesión, mostrar onboarding
       }
       setIsLoading(false);
     };
@@ -76,13 +83,14 @@ export default function HomePage() {
     } else if (status === 'unauthenticated') {
       setHasCompletedOnboarding(false);
       setIsLoading(false);
+      setOpenAccordionId('primeros-pasos');
     }
   }, [session, status]);
-  
+
   const handleExpenseAdded = () => {
     setIsModalOpen(false);
     setInitialExpenseText('');
-    setDataRefreshKey(prevKey => prevKey + 1); 
+    setDataRefreshKey(prevKey => prevKey + 1);
   };
 
   const handleAccordionToggle = (id: string) => {
@@ -90,7 +98,6 @@ export default function HomePage() {
   };
   
   const handleSidebarClick = (id: string) => {
-    if (openAccordionId === id) return;
     setOpenAccordionId(id);
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -100,9 +107,10 @@ export default function HomePage() {
     setOpenAccordionId('mis-finanzas');
   };
 
-  const handleFinancialDataLoaded = (data: { supermarketSpending: number }) => {
+  // CORRECCIÓN BUCLE: Envolvemos la función con useCallback para estabilizar su referencia.
+  const handleFinancialDataLoaded = useCallback((data: { supermarketSpending: number }) => {
     setSharedFinancialData(data);
-  };
+  }, []); // El array de dependencias vacío asegura que la función nunca cambie.
 
   const moduleTitle = `Módulo 2: Tu ${selectedGardeningMethod === 'hydroponics' ? 'Sistema Hidropónico' : 'Huerto Orgánico'}`;
   
@@ -154,7 +162,12 @@ export default function HomePage() {
                   <p>Por favor, completá los "Primeros Pasos" para activar este módulo.</p>
                 </div>
               ) : (
-                <FinanceModule key={dataRefreshKey} onDataLoaded={handleFinancialDataLoaded} />
+                // CORRECCIÓN BUCLE: Le pasamos la prop 'isOpen' al módulo.
+                <FinanceModule 
+                  key={dataRefreshKey} 
+                  onDataLoaded={handleFinancialDataLoaded}
+                  isOpen={openAccordionId === 'mis-finanzas'}
+                />
               )}
             </Accordion>
           </div>
@@ -201,7 +214,6 @@ export default function HomePage() {
             </Accordion>
           </div>
 
-          {/* CORRECCIÓN: Contenedor unificado para los botones flotantes */}
           <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-4">
             <VoiceChat />
             <FloatingActionButton onClick={() => setIsModalOpen(true)} />
@@ -215,3 +227,4 @@ export default function HomePage() {
     </>
   );
 }
+
