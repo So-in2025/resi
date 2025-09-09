@@ -45,22 +45,34 @@ model_chat = genai.GenerativeModel(model_name="gemini-1.5-flash-latest")
 def read_root():
     return {"status": "ok", "version": "3.4.0"}
 
+
 @app.post("/transcribe")
 async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     try:
-        webm_audio = await audio_file.read()
-        audio = AudioSegment.from_file(io.BytesIO(webm_audio), format="webm")
-        wav_audio_content = io.BytesIO()
-        audio.export(wav_audio_content, format="wav")
-        wav_audio_content.seek(0)
-        config = speech.RecognitionConfig(encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16, sample_rate_hertz=audio.frame_rate, language_code="es-AR")
-        audio_source = speech.RecognitionAudio(content=wav_audio_content.read())
+        # Leemos el contenido del archivo de audio tal como llega
+        webm_audio_content = await audio_file.read()
+
+        # 1. La configuración ahora especifica WEBM_OPUS como el encoding.
+        # 2. Usamos una frecuencia de muestreo estándar de 48000, común en grabaciones web.
+        config = speech.RecognitionConfig(
+            encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
+            sample_rate_hertz=48000,
+            language_code="es-AR"
+        )
+
+        # Pasamos el contenido del audio directamente, sin conversión
+        audio_source = speech.RecognitionAudio(content=webm_audio_content)
+        
+        # El resto de la lógica no cambia
         response = speech_client.recognize(config=config, audio=audio_source)
         transcripts = [result.alternatives[0].transcript for result in response.results]
+        
         if not transcripts:
             raise HTTPException(status_code=400, detail="No se pudo entender el audio.")
+            
         full_transcript = " ".join(transcripts)
         parsed_data = await parse_expense_with_gemini(full_transcript, db, user.email)
+        
         if parsed_data:
             new_expense = Expense(user_email=user.email, **parsed_data)
             db.add(new_expense)
@@ -68,9 +80,13 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Dep
             db.refresh(new_expense)
             return {"status": "Gasto registrado con éxito", "data": parsed_data}
         else:
+            # Si Gemini no puede extraer los datos, devolvemos el texto para que el usuario lo vea
             return {"status": "No se pudo categorizar el gasto", "data": {"description": full_transcript}}
+
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error en la transcripción: {e}")
+        # Importante: Loguear el error real en el servidor para futura depuración
+        print(f"Error detallado en la transcripción: {e}")
+        raise HTTPException(status_code=400, detail=f"Error en la transcripción: No se pudo procesar el audio.")
 
 @app.post("/process-text")
 async def process_text(input_data: TextInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):

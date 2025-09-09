@@ -9,7 +9,6 @@ soundfile
 google-cloud-speech
 spacy==3.7.5
 psycopg2-binary
-pydub
 google-generativeai # <-- Agregada para la integración del LLM
 
 # CORRECCIÓN FINAL: Usamos el modelo PEQUEÑO (sm), el más liviano de todos,

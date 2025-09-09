@@ -4,9 +4,6 @@ FROM python:3.11-slim
 # Establecemos el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# Instala ffmpeg y dependencias
-RUN apt-get update && apt-get install -y ffmpeg
-
 # Copiamos los archivos de requerimientos e instalamos las dependencias
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
