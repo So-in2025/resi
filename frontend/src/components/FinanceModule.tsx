@@ -59,10 +59,9 @@ export interface FinancialData {
   goals: any[];
 }
 
-// CORRECCIÓN BUCLE: Añadimos la prop 'isOpen' para saber cuándo cargar los datos.
 interface FinanceModuleProps {
     onDataLoaded: (data: { supermarketSpending: number }) => void;
-    isOpen: boolean; 
+    isOpen: boolean;
 }
 
 // --- COMPONENTE PRINCIPAL ---
@@ -103,18 +102,14 @@ export default function FinanceModule({ onDataLoaded, isOpen }: FinanceModulePro
     } finally {
       setIsLoading(false);
     }
-  // CORRECCIÓN BUCLE: Se elimina 'onDataLoaded' de las dependencias para romper el bucle.
-  }, [session, status]);
+  }, [session, status, onDataLoaded]);
 
   useEffect(() => {
-    // CORRECCIÓN BUCLE: Solo se ejecuta la carga de datos si el acordeón está abierto.
     if (status === 'authenticated' && isOpen) {
         fetchAllData();
     }
-  // CORRECCIÓN BUCLE: Ahora la dependencia principal es 'isOpen'.
   }, [status, isOpen, fetchAllData]);
 
-  // Si el usuario no está logueado, se muestra el mensaje para ingresar.
   if (status === 'unauthenticated') {
     return (
         <div className="text-center p-8">
@@ -127,7 +122,6 @@ export default function FinanceModule({ onDataLoaded, isOpen }: FinanceModulePro
     );
   }
 
-  // Muestra el mensaje de carga solo si el acordeón está abierto y los datos aún no están listos.
   if (isLoading && isOpen) {
     return <div className="flex items-center justify-center h-64"><FaSync className="animate-spin text-4xl text-gray-400" /><p className="ml-4 text-gray-400">Analizando tus finanzas...</p></div>;
   }
@@ -136,7 +130,6 @@ export default function FinanceModule({ onDataLoaded, isOpen }: FinanceModulePro
     return <div className="flex items-center justify-center h-64 text-red-400"><FaExclamationCircle className="text-4xl" /><p className="ml-4">{error}</p></div>;
   }
   
-  // Si no está cargando y no hay datos (porque el acordeón no se abrió), no muestra nada.
   if (!financialData) {
     return null; 
   }
@@ -159,4 +152,3 @@ export default function FinanceModule({ onDataLoaded, isOpen }: FinanceModulePro
     </div>
   );
 }
-

@@ -102,7 +102,6 @@ export default function HomePage() {
   
   const handleSidebarClick = (id: string) => {
     setOpenAccordionId(id);
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   
   const handleOnboardingComplete = () => {
@@ -152,7 +151,7 @@ export default function HomePage() {
             </Accordion>
           </div>
 
-          <div id="mis-finanzas" className="mt-12 w-full max-w-4xl scroll-mt-20">
+          <div id="mis-finanzas" className="mt-12 w-full max-w-4xl scroll-mt-40">
             <Accordion 
               id="mis-finanzas"
               title="Módulo 1: Tu Centro de Comando Financiero"
@@ -173,7 +172,7 @@ export default function HomePage() {
             </Accordion>
           </div>
 
-          <div id="modulo-cultivo" className="mt-12 w-full max-w-4xl scroll-mt-20">
+          <div id="modulo-cultivo" className="mt-12 w-full max-w-4xl scroll-mt-40">
             <Accordion 
               id="modulo-cultivo"
               title={moduleTitle}
@@ -204,7 +203,7 @@ export default function HomePage() {
             </Accordion>
           </div>
           
-          <div id="modulo-familia" className="mt-12 w-full max-w-4xl scroll-mt-20">
+          <div id="modulo-familia" className="mt-12 w-full max-w-4xl scroll-mt-40">
             <Accordion 
               id="modulo-familia"
               title="Módulo 3: IA de Planificación Familiar"

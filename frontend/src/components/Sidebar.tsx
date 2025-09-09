@@ -25,9 +25,9 @@ const Sidebar = ({ isOpen, onClose, onOpen, onSidebarClick }: SidebarProps) => {
       <div
         className="hidden md:flex flex-col items-start 
                    md:w-20 md:hover:w-52 transition-all duration-300 ease-in-out
-                   p-4 bg-gray-900 text-white sticky top-0 h-screen overflow-hidden group"
+                   p-4 bg-gray-900 text-white fixed top-0 left-0 h-screen overflow-hidden group z-40"
       >
-        <div className="flex flex-col items-start group-hover:items-start space-y-4 pt-4">
+        <div className="flex flex-col items-start group-hover:items-start space-y-4 pt-40">
           {navigationItems.map((item) => (
             <a
               key={item.name}

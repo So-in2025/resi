@@ -7,7 +7,6 @@ import toast from 'react-hot-toast';
 import apiClient from '@/lib/apiClient';
 import { useSession } from 'next-auth/react';
 
-// --- LISTA COMPLETA DE CONSEJOS RESTAURADA ---
 const consejos = [
   "Recordá registrar hasta el gasto más chiquito. ¡Esos son los que más suman a fin de mes!",
   "Una vez por semana, tomate 5 minutos para chusmear tu 'Historial'. Te va a sorprender lo que podés descubrir.",
@@ -45,21 +44,20 @@ export const useResiVoice = () => {
   const [actionToPerform, setActionToPerform] = useState<{ type: string; payload?: any } | null>(null);
   const [hasSpokenWelcome, setHasSpokenWelcome] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  // ---- NUEVO ESTADO PARA "ACTIVAR" EL AUDIO ----
+  const [isSpeechPrimed, setIsSpeechPrimed] = useState(false);
   
   const tipIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-// FUNCIÓN SPEAK MEJORADA CON MÁS DIAGNÓSTICOS
+
   const speak = useCallback((text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
     const performSpeak = () => {
-      // Cancelamos cualquier habla anterior para evitar solapamientos
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       
       utterance.onstart = () => setSpeaking(true);
       utterance.onend = () => setSpeaking(false);
-      // Añadimos un log de error más detallado
       utterance.onerror = (e) => {
         console.error("Error en SpeechSynthesis:", e);
         toast.error("Hubo un problema al generar la voz.");
@@ -69,17 +67,14 @@ export const useResiVoice = () => {
       const voices = window.speechSynthesis.getVoices();
       if (voices.length === 0) {
         console.error("No se encontraron voces en el navegador.");
-        toast.error("No se encontraron voces para reproducir.");
         setSpeaking(false);
         return;
       }
 
       const googleSpanishVoice = voices.find(v => v.lang.startsWith('es') && v.name.includes('Google'));
       const nativeSpanishVoice = voices.find(v => v.lang.startsWith('es'));
-
       utterance.voice = googleSpanishVoice || nativeSpanishVoice || voices[0];
       
-      // Log para saber qué voz se está usando
       console.log("Voz seleccionada:", utterance.voice.name);
 
       utterance.lang = utterance.voice?.lang || 'es-AR';
@@ -98,6 +93,14 @@ export const useResiVoice = () => {
   const { transcript, finalTranscript, listening, resetTranscript, browserSupportsSpeechRecognition } = useSpeechRecognition();
 
   const startListening = useCallback(() => {
+    // ---- LÓGICA DE "ACTIVACIÓN" ----
+    if (!isSpeechPrimed) {
+      const primerUtterance = new SpeechSynthesisUtterance('');
+      primerUtterance.volume = 0; // Silencioso
+      window.speechSynthesis.speak(primerUtterance);
+      setIsSpeechPrimed(true);
+    }
+
     if (speaking) {
       window.speechSynthesis.cancel();
       setSpeaking(false);
@@ -114,7 +117,7 @@ export const useResiVoice = () => {
     } else {
       toast.error('Tu navegador no soporta el reconocimiento de voz.');
     }
-  }, [browserSupportsSpeechRecognition, hasSpokenWelcome, resetTranscript, speak, speaking]);
+  }, [browserSupportsSpeechRecognition, hasSpokenWelcome, isSpeechPrimed, resetTranscript, speak, speaking]);
 
   const stopListening = () => SpeechRecognition.stopListening();
 
@@ -134,7 +137,7 @@ export const useResiVoice = () => {
           const response = await apiClient.post<{ response: string }>('/chat', { question: command }, {
             headers: { 'Authorization': `Bearer ${session.user.email}` }
           });
-          speak(response.data.response); // Ahora esta llamada funcionará
+          speak(response.data.response);
           toast.dismiss(toastId);
         } catch (error) {
           console.error("Error en el chat con IA:", error);
@@ -159,7 +162,7 @@ export const useResiVoice = () => {
                 speak(shuffledConsejos[consejoIndex]);
                 consejoIndex++;
             }
-        }, 45000); // 45 segundos
+        }, 45000);
     };
     
     if (hasSpokenWelcome) startInterval();
