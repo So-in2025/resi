@@ -12,12 +12,18 @@ import Sidebar from "@/components/Sidebar";
 import CultivationModule from "@/components/CultivationModule";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import Header from "@/components/Header";
-import FinanceModule from '@/components/FinanceModule';
+import FinanceModule from '@/components/FinanceModule'; 
 import FamilyPlannerModule from "@/components/FamilyPlannerModule";
 import apiClient from "@/lib/apiClient";
+import dynamic from 'next/dynamic';
 import { ChatWindow, ChatMessage } from "@/components/ChatWindow";
 import { FaComments } from "react-icons/fa";
-import toast from 'react-hot-toast'; // <-- LÍNEA AGREGADA PARA SOLUCIONAR EL ERROR
+import toast from 'react-hot-toast';
+
+const VoiceChatDinamic = dynamic(() => import('@/components/VoiceChat'), {
+  ssr: false, 
+  loading: () => <div className="w-16 h-16 rounded-full bg-gray-700 animate-pulse" /> 
+});
 
 const HeroSection = () => (
   <div className="text-center mb-12 w-full max-w-4xl">
@@ -33,6 +39,7 @@ const HeroSection = () => (
 export default function HomePage() {
   const { data: session, status } = useSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [initialExpenseText, setInitialExpenseText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [openAccordionId, setOpenAccordionId] = useState<string | null>(null);
   const [selectedGardeningMethod, setSelectedGardeningMethod] = useState('hydroponics');
@@ -41,13 +48,8 @@ export default function HomePage() {
   const [sharedFinancialData, setSharedFinancialData] = useState<{ supermarketSpending: number } | null>(null);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
- // ---- ESTADO DEL CHAT ACTUALIZADO ----
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { sender: 'ai', text: '¡Hola! Soy Resi. ¿En qué te puedo ayudar hoy?' },
-    // NUEVO MENSAJE INFORMATIVO
-    { sender: 'ai', text: 'Podés tocar mis mensajes para escucharlos en voz alta.', isInfo: true }
-  ]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
     const checkOnboardingStatus = async () => {
@@ -81,29 +83,62 @@ export default function HomePage() {
       setOpenAccordionId('primeros-pasos');
     }
   }, [session, status]);
-  
+
+  useEffect(() => {
+    const fetchChatHistory = async () => {
+        if (isChatOpen && session?.user?.email) {
+            try {
+                const response = await apiClient.get('/chat/history', {
+                    headers: { 'Authorization': `Bearer ${session.user.email}` }
+                });
+                const history = response.data.map((msg: any) => ({
+                    sender: msg.sender,
+                    text: msg.message,
+                }));
+
+                if (history.length > 0) {
+                    setChatMessages(history);
+                } else {
+                    setChatMessages([
+                        { sender: 'ai', text: '¡Hola! Soy Resi. ¿En qué te puedo ayudar hoy?' },
+                        { sender: 'ai', text: 'Podés tocar mis mensajes para escucharlos en voz alta.', isInfo: true }
+                    ]);
+                }
+            } catch (error) {
+                console.error("Error al cargar el historial del chat:", error);
+                toast.error("No se pudo cargar el historial del chat.");
+            }
+        }
+    };
+
+    fetchChatHistory();
+  }, [isChatOpen, session]);
+
   const handleSendMessage = async (text: string) => {
     if (!session?.user?.email) {
       toast.error("Debes iniciar sesión para chatear con Resi.");
       return;
     }
 
-    setChatMessages(prev => [...prev, { sender: 'user', text }]);
+    const userMessage: ChatMessage = { sender: 'user', text };
+    setChatMessages(prev => [...prev, userMessage]);
 
     try {
       const response = await apiClient.post<{ response: string }>('/chat', { question: text }, {
         headers: { 'Authorization': `Bearer ${session.user.email}` }
       });
-      setChatMessages(prev => [...prev, { sender: 'ai', text: response.data.response }]);
+      const aiMessage: ChatMessage = { sender: 'ai', text: response.data.response };
+      setChatMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error("Error en el chat con IA:", error);
-      setChatMessages(prev => [...prev, { sender: 'ai', text: "Disculpá, tuve un problema para procesar tu pregunta." }]);
+      const errorMsg: ChatMessage = { sender: 'ai', text: "Disculpá, tuve un problema para procesar tu pregunta." };
+      setChatMessages(prev => [...prev, errorMsg]);
     }
   };
 
-
   const handleExpenseAdded = () => {
     setIsModalOpen(false);
+    setInitialExpenseText('');
     setDataRefreshKey(prevKey => prevKey + 1);
   };
 
@@ -237,7 +272,7 @@ export default function HomePage() {
           </div>
 
           <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Registrar Nuevo Gasto">
-            <AddExpenseForm onExpenseAdded={handleExpenseAdded} />
+            <AddExpenseForm onExpenseAdded={handleExpenseAdded} initialText={initialExpenseText}/>
           </Modal>
 
           <ChatWindow

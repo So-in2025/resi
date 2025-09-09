@@ -26,6 +26,8 @@ class User(Base):
     expenses = relationship("Expense", back_populates="owner")
     budget_items = relationship("BudgetItem", back_populates="owner")
     saving_goals = relationship("SavingGoal", back_populates="owner")
+    # Nueva relación para el historial de chat
+    chat_messages = relationship("ChatMessage", back_populates="owner")
 
 class Expense(Base):
     __tablename__ = "expenses"
@@ -54,6 +56,17 @@ class SavingGoal(Base):
     current_amount = Column(Float, default=0.0)
     user_email = Column(String, ForeignKey("users.email"))
     owner = relationship("User", back_populates="saving_goals")
+
+# --- NUEVO MODELO PARA EL HISTORIAL DEL CHAT ---
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    sender = Column(String, nullable=False) # 'user' o 'ai'
+    message = Column(String, nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    user_email = Column(String, ForeignKey("users.email"))
+    owner = relationship("User", back_populates="chat_messages")
+
 
 def create_db_and_tables():
     Base.metadata.create_all(bind=engine)

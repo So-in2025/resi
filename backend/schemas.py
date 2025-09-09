@@ -1,6 +1,7 @@
 # En: backend/schemas.py
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
+from datetime import datetime
 
 class TextInput(BaseModel): text: str
 class BudgetItemInput(BaseModel): category: str; allocated_amount: float; is_custom: bool
@@ -23,3 +24,12 @@ class FamilyPlanRequest(BaseModel):
     financialGoals: str; leisureActivities: List[str]
 class ExpenseData(BaseModel):
     amount: float; category: str; description: str
+
+# --- NUEVO SCHEMA PARA EL HISTORIAL DEL CHAT ---
+class ChatMessageResponse(BaseModel):
+    sender: str
+    message: str
+    timestamp: datetime
+
+    class Config:
+        orm_mode = True
