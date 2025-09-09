@@ -15,13 +15,9 @@ import Header from "@/components/Header";
 import FinanceModule from '@/components/FinanceModule';
 import FamilyPlannerModule from "@/components/FamilyPlannerModule";
 import apiClient from "@/lib/apiClient";
-import { useResiVoice } from "@/hooks/useResiVoice";
-import dynamic from 'next/dynamic';
-
-const VoiceChatDinamic = dynamic(() => import('@/components/VoiceChat'), {
-  ssr: false,
-  loading: () => <div className="w-16 h-16 rounded-full bg-gray-700 animate-pulse" />
-});
+import { ChatWindow, ChatMessage } from "@/components/ChatWindow";
+import { FaComments } from "react-icons/fa";
+import toast from 'react-hot-toast'; // <-- LÍNEA AGREGADA PARA SOLUCIONAR EL ERROR
 
 const HeroSection = () => (
   <div className="text-center mb-12 w-full max-w-4xl">
@@ -37,7 +33,6 @@ const HeroSection = () => (
 export default function HomePage() {
   const { data: session, status } = useSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [initialExpenseText, setInitialExpenseText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [openAccordionId, setOpenAccordionId] = useState<string | null>(null);
   const [selectedGardeningMethod, setSelectedGardeningMethod] = useState('hydroponics');
@@ -45,17 +40,11 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [sharedFinancialData, setSharedFinancialData] = useState<{ supermarketSpending: number } | null>(null);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
-  const { actionToPerform, clearAction } = useResiVoice();
 
-  useEffect(() => {
-    if (actionToPerform) {
-      if (actionToPerform.type === 'OPEN_ADD_EXPENSE_MODAL_WITH_TEXT') {
-        setInitialExpenseText(actionToPerform.payload);
-        setIsModalOpen(true);
-      }
-      clearAction();
-    }
-  }, [actionToPerform, clearAction]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    { sender: 'ai', text: '¡Hola! Soy Resi. ¿En qué te puedo ayudar hoy?' }
+  ]);
 
   useEffect(() => {
     const checkOnboardingStatus = async () => {
@@ -89,10 +78,29 @@ export default function HomePage() {
       setOpenAccordionId('primeros-pasos');
     }
   }, [session, status]);
+  
+  const handleSendMessage = async (text: string) => {
+    if (!session?.user?.email) {
+      toast.error("Debes iniciar sesión para chatear con Resi.");
+      return;
+    }
+
+    setChatMessages(prev => [...prev, { sender: 'user', text }]);
+
+    try {
+      const response = await apiClient.post<{ response: string }>('/chat', { question: text }, {
+        headers: { 'Authorization': `Bearer ${session.user.email}` }
+      });
+      setChatMessages(prev => [...prev, { sender: 'ai', text: response.data.response }]);
+    } catch (error) {
+      console.error("Error en el chat con IA:", error);
+      setChatMessages(prev => [...prev, { sender: 'ai', text: "Disculpá, tuve un problema para procesar tu pregunta." }]);
+    }
+  };
+
 
   const handleExpenseAdded = () => {
     setIsModalOpen(false);
-    setInitialExpenseText('');
     setDataRefreshKey(prevKey => prevKey + 1);
   };
 
@@ -151,7 +159,7 @@ export default function HomePage() {
             </Accordion>
           </div>
 
-          <div id="mis-finanzas" className="mt-12 w-full max-w-4xl scroll-mt-40">
+          <div id="mis-finanzas" className="mt-12 w-full max-w-4xl scroll-mt-20">
             <Accordion 
               id="mis-finanzas"
               title="Módulo 1: Tu Centro de Comando Financiero"
@@ -172,7 +180,7 @@ export default function HomePage() {
             </Accordion>
           </div>
 
-          <div id="modulo-cultivo" className="mt-12 w-full max-w-4xl scroll-mt-40">
+          <div id="modulo-cultivo" className="mt-12 w-full max-w-4xl scroll-mt-20">
             <Accordion 
               id="modulo-cultivo"
               title={moduleTitle}
@@ -203,7 +211,7 @@ export default function HomePage() {
             </Accordion>
           </div>
           
-          <div id="modulo-familia" className="mt-12 w-full max-w-4xl scroll-mt-40">
+          <div id="modulo-familia" className="mt-12 w-full max-w-4xl scroll-mt-20">
             <Accordion 
               id="modulo-familia"
               title="Módulo 3: IA de Planificación Familiar"
@@ -214,14 +222,27 @@ export default function HomePage() {
             </Accordion>
           </div>
 
-          <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-4">
-            <VoiceChatDinamic />
+          <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-4">
+            <button
+              onClick={() => setIsChatOpen(true)}
+              className="bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-transform transform hover:scale-110"
+              aria-label="Abrir chat con Resi"
+            >
+              <FaComments size={24} />
+            </button>
             <FloatingActionButton onClick={() => setIsModalOpen(true)} />
           </div>
 
-          <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setInitialExpenseText(''); }} title="Registrar Nuevo Gasto">
-            <AddExpenseForm onExpenseAdded={handleExpenseAdded} initialText={initialExpenseText} />
+          <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Registrar Nuevo Gasto">
+            <AddExpenseForm onExpenseAdded={handleExpenseAdded} />
           </Modal>
+
+          <ChatWindow
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            messages={chatMessages}
+            onSendMessage={handleSendMessage}
+          />
         </main>
       </div>
     </>
