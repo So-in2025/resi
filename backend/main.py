@@ -14,10 +14,10 @@ from typing import List
 from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini
-from routers import finance, cultivation, family
+from routers import finance, cultivation, family, market_data
 
 # --- Creación de la aplicación FastAPI ---
-app = FastAPI(title="Resi API", version="3.5.0")
+app = FastAPI(title="Resi API", version="4.0.0")
 
 create_db_and_tables()
 
@@ -33,11 +33,11 @@ app.include_router(finance.router)
 app.include_router(finance.goals_router)
 app.include_router(cultivation.router)
 app.include_router(family.router)
+app.include_router(market_data.router) # <-- INCLUIMOS EL NUEVO ROUTER
 
 # --- Configuración de IA ---
 speech_client = speech.SpeechClient()
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-
 system_prompt_chat = textwrap.dedent("""
     Eres "Resi", un asistente de IA amigable, empático y experto en resiliencia económica y alimentaria para usuarios en Argentina. Tu propósito es empoderar a las personas para que tomen el control de sus finanzas y bienestar.
 
@@ -57,13 +57,20 @@ system_prompt_chat = textwrap.dedent("""
     - `long_term_goals`: Metas a largo plazo del usuario (ej: "comprar una casa", "jubilarme a los 60"). Ayúdalo a alinear sus decisiones diarias con estas metas.
     - `family_plan`: El último plan familiar que generó. Si pregunta sobre comidas o actividades, básate en este plan.
 
+    NUEVA CAPACIDAD: CONTEXTO EN TIEMPO REAL
+    Al inicio de cada conversación, recibirás un bloque de "CONTEXTO EN TIEMPO REAL" con datos económicos actuales. DEBES usar esta información para que tus consejos sean precisos y valiosos.
+    Ejemplo de cómo usar el contexto:
+    - Si el usuario pregunta si le conviene comprar dólares, tu respuesta DEBE basarse en la cotización del Dólar Blue que te fue proporcionada.
+    - Si un usuario quiere invertir, DEBES mencionar la tasa de plazo fijo actual (próximamente) y compararla con la inflación (próximamente) para evaluar si es una buena opción.
+    - NO inventes datos. Si no tienes un dato específico (ej. inflación del mes), acláralo.
+
     Tus reglas:
-    1.  Siempre relacioná tus respuestas con los temas centrales de Resi: ahorro, finanzas, presupuesto, cultivo, planificación y bienestar.
-    2.  Si el usuario pregunta algo fuera de estos temas, redirige amablemente la conversación a tus temas centrales.
+    1.  Integra siempre el contexto del usuario y el contexto en tiempo real en tus respuestas.
+    2.  Si el usuario pregunta algo fuera de tus temas, redirige amablemente la conversación a tus temas centrales.
     3.  Sé conciso y andá al grano.
-    4.  Utilizá el contexto financiero, el perfil del usuario y el historial de chat para personalizar tus respuestas y recordar conversaciones pasadas.
+    4.  Utilizá el historial de chat para recordar conversaciones pasadas.
     5.  NUNCA uses formato Markdown (asteriscos, etc.). Responde siempre en texto plano.
-    6.  MUY IMPORTANTE: Antes de sugerir cualquier herramienta o solución externa, SIEMPRE priorizá y recomendá las "Herramientas Internas de Resi" si son relevantes para la pregunta del usuario. Tu objetivo es que el usuario use y aproveche al máximo la propia aplicación.
+    6.  MUY IMPORTANTE: Antes de sugerir cualquier herramienta o solución externa, SIEMPRE priorizá y recomendá las "Herramientas Internas de Resi".
 """)
 
 model_chat = genai.GenerativeModel(
@@ -74,7 +81,7 @@ model_chat = genai.GenerativeModel(
 # --- ENDPOINTS GLOBALES ---
 @app.get("/")
 def read_root():
-    return {"status": "ok", "version": "3.5.0"}
+    return {"status": "ok", "version": "4.0.0"}
 
 @app.post("/transcribe")
 async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
@@ -127,27 +134,29 @@ async def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: Use
     db.add(ChatMessage(user_email=user.email, sender="user", message=request.question))
     db.commit()
 
-    # --- Construcción de Contexto Avanzado para la IA ---
+    # --- Construcción de Contexto Avanzado para la IA (Ruta 2) ---
+    # 1. Obtenemos los datos en tiempo real
+    try:
+        dolar_data = await market_data.get_dolar_prices()
+        real_time_context = f"CONTEXTO EN TIEMPO REAL: El Dólar Blue está a ${dolar_data['blue']['venta']} para la venta. El Dólar Oficial está a ${dolar_data['oficial']['venta']}."
+    except Exception as e:
+        real_time_context = "CONTEXTO EN TIEMPO REAL: No se pudo obtener la cotización del dólar en este momento."
+
+    # 2. Obtenemos el perfil del usuario
     summary_data = finance.get_dashboard_summary(db=db, user=user)
     financial_context = f"Contexto financiero del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."
-    
     risk_profile = user.risk_profile or "no definido"
     long_term_goals = user.long_term_goals or "no definidas"
     profile_context = f"Perfil del usuario: Se define como '{risk_profile}' y su meta a largo plazo es '{long_term_goals}'."
 
-    plan_context = "Aún no ha generado un plan familiar."
-    latest_plan = db.query(FamilyPlan).filter(FamilyPlan.user_email == user.email).order_by(FamilyPlan.created_at.desc()).first()
-    if latest_plan:
-        plan_context = f"Información de su último plan familiar: {latest_plan.budget_suggestion}"
+    full_context = f"{real_time_context}\n{financial_context}\n{profile_context}"
 
-    full_context = f"{financial_context}\n{profile_context}\n{plan_context}"
-
+    # 3. Historial de Chat Reciente
     chat_history_db = db.query(ChatMessage).filter(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.desc()).limit(10).all()
     chat_history_db.reverse()
-
     history_for_ia = [
         {"role": "user", "parts": [full_context]},
-        {"role": "model", "parts": ["¡Entendido! Tengo el perfil completo y el contexto del usuario. Estoy listo para ayudar de forma hiper-personalizada."]}
+        {"role": "model", "parts": ["Entendido. Tengo el contexto económico y del usuario. Estoy listo para ayudar."]}
     ]
     for msg in chat_history_db:
         role = "user" if msg.sender == "user" else "model"
@@ -158,10 +167,8 @@ async def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: Use
     try:
         response_model = await chat.send_message_async(request.question)
         ai_response_text = response_model.text
-
         db.add(ChatMessage(user_email=user.email, sender="ai", message=ai_response_text))
         db.commit()
-
         return {"response": ai_response_text}
     except Exception as e:
         print(f"Error al procesar la solicitud con la IA: {e}")
