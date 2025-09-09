@@ -6,7 +6,6 @@ import textwrap
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import speech
-from pydub import AudioSegment
 import google.generativeai as genai
 from sqlalchemy.orm import Session
 
