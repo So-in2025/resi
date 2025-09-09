@@ -47,34 +47,47 @@ export const useResiVoice = () => {
   const [speaking, setSpeaking] = useState(false);
   
   const tipIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // NUEVA FUNCIÓN SPEAK MÁS ROBUSTA
+  
+// FUNCIÓN SPEAK MEJORADA CON MÁS DIAGNÓSTICOS
   const speak = useCallback((text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
     const performSpeak = () => {
+      // Cancelamos cualquier habla anterior para evitar solapamientos
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       
       utterance.onstart = () => setSpeaking(true);
       utterance.onend = () => setSpeaking(false);
+      // Añadimos un log de error más detallado
       utterance.onerror = (e) => {
         console.error("Error en SpeechSynthesis:", e);
+        toast.error("Hubo un problema al generar la voz.");
         setSpeaking(false);
       };
       
       const voices = window.speechSynthesis.getVoices();
+      if (voices.length === 0) {
+        console.error("No se encontraron voces en el navegador.");
+        toast.error("No se encontraron voces para reproducir.");
+        setSpeaking(false);
+        return;
+      }
+
       const googleSpanishVoice = voices.find(v => v.lang.startsWith('es') && v.name.includes('Google'));
       const nativeSpanishVoice = voices.find(v => v.lang.startsWith('es'));
 
       utterance.voice = googleSpanishVoice || nativeSpanishVoice || voices[0];
+      
+      // Log para saber qué voz se está usando
+      console.log("Voz seleccionada:", utterance.voice.name);
+
       utterance.lang = utterance.voice?.lang || 'es-AR';
       utterance.rate = 1.1;
       utterance.pitch = 1.2;
       window.speechSynthesis.speak(utterance);
     };
 
-    // Esta es la clave: si las voces no están listas, esperamos el evento onvoiceschanged.
     if (window.speechSynthesis.getVoices().length === 0) {
       window.speechSynthesis.onvoiceschanged = performSpeak;
     } else {

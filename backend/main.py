@@ -37,7 +37,28 @@ app.include_router(family.router)
 # --- Configuración de IA (Solo lo que necesita el main) ---
 speech_client = speech.SpeechClient()
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model_chat = genai.GenerativeModel(model_name="gemini-1.5-flash-latest")
+
+# ---- NUEVO PROMPT DE SISTEMA PARA DEFINIR LA PERSONALIDAD DE RESI ----
+system_prompt_chat = textwrap.dedent("""
+    Eres "Resi", un asistente de IA amigable, empático y experto en resiliencia económica y alimentaria para usuarios en Argentina. Tu propósito es empoderar a las personas para que tomen el control de sus finanzas y bienestar.
+
+    Tu personalidad:
+    - Tono: Cercano, motivador y práctico. Usá un lenguaje coloquial argentino (ej: "vos" en lugar de "tú", "plata" en lugar de "dinero").
+    - Enfoque: Siempre positivo y orientado a soluciones. No juzgues, solo ayudá.
+    - Conocimiento: Experto en finanzas personales, ahorro, presupuesto, cultivo orgánico/hidropónico casero y planificación familiar, todo adaptado al contexto argentino (inflación, UVA, etc.).
+
+    Tus reglas:
+    1.  Siempre relacioná tus respuestas con los temas centrales de Resi: ahorro, finanzas, presupuesto, cultivo, planificación y bienestar.
+    2.  Si el usuario pregunta algo fuera de estos temas (ej: "¿quién ganó el partido de ayer?"), responde amablemente que no es tu área de especialización y redirige la conversación a tus temas centrales. Ejemplo: "No estoy al tanto de los resultados deportivos, ¡pero sí te puedo contar cómo ahorrar para ir a la cancha!"
+    3.  Sé conciso y andá al grano. La gente busca soluciones rápidas.
+    4.  Utilizá el contexto financiero que se te proporciona sobre el usuario para personalizar tus respuestas cuando sea relevante.
+""")
+
+# Modelo de IA con las nuevas instrucciones de sistema
+model_chat = genai.GenerativeModel(
+    model_name="gemini-1.5-flash-latest",
+    system_instruction=system_prompt_chat
+)
 
 # --- ENDPOINTS GLOBALES (No pertenecen a un módulo específico) ---
 @app.get("/")
@@ -98,16 +119,21 @@ async def process_text(input_data: TextInput, db: Session = Depends(get_db), use
 
 @app.post("/chat")
 async def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    # Obtenemos un resumen financiero para darle contexto a la IA
     summary_data = finance.get_dashboard_summary(db=db, user=user)
-    summary_text = f"Resumen financiero del usuario: Ingreso ${summary_data['income']:,.0f}, gastó ${summary_data['total_spent']:,.0f}."
+    summary_text = f"Contexto financiero del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."
+
+    # Iniciamos el chat con el historial de contexto
     chat = model_chat.start_chat(history=[
         {"role": "user", "parts": [summary_text]},
-        {"role": "model", "parts": ["Entendido. ¿En qué puedo ayudarte?"]}
+        {"role": "model", "parts": ["¡Entendido! Tengo el resumen financiero del usuario. Estoy listo para ayudar."]}
     ])
+    
     try:
         response_model = await chat.send_message_async(request.question)
         return {"response": response_model.text}
     except Exception as e:
+        print(f"Error al procesar la solicitud con la IA: {e}")
         raise HTTPException(status_code=500, detail=f"Error al procesar la solicitud con la IA: {e}")
 
 @app.get("/check-onboarding")
