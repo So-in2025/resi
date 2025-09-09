@@ -6,10 +6,10 @@ import json
 import textwrap
 import google.generativeai as genai
 
-from .database import SessionLocal, User, BudgetItem
-from .schemas import ExpenseData
+# CORRECCIÓN: Las importaciones ahora son absolutas desde la raíz del 'backend'.
+from database import SessionLocal, User, BudgetItem
+from schemas import ExpenseData
 
-# Dependencia para obtener la sesión de la base de datos
 def get_db():
     db = SessionLocal()
     try:
@@ -17,14 +17,12 @@ def get_db():
     finally:
         db.close()
 
-# Dependencia para obtener y verificar el email del usuario desde el token
 def get_current_user_email(request: Request, authorization: Optional[str] = Header(None)):
     if request.method == "OPTIONS": return None
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de autorización faltante o inválido.")
     return authorization.split(" ")[1]
 
-# Dependencia para obtener el objeto User de la base de datos o crearlo si no existe
 def get_user_or_create(user_email: str = Depends(get_current_user_email), db: Session = Depends(get_db)):
     if user_email is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No se pudo verificar el email del usuario.")
@@ -37,7 +35,6 @@ def get_user_or_create(user_email: str = Depends(get_current_user_email), db: Se
         return new_user
     return user
 
-# Lógica de categorización de gastos con Gemini
 async def parse_expense_with_gemini(text: str, db: Session, user_email: str) -> Optional[dict]:
     budget_items = db.query(BudgetItem.category).filter(BudgetItem.user_email == user_email, BudgetItem.category != "_income").all()
     user_categories = [item[0] for item in budget_items]

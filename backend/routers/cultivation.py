@@ -2,10 +2,10 @@
 from fastapi import APIRouter, Depends
 import random
 
-# Importamos desde los nuevos archivos compartidos
-from ..database import User
-from ..schemas import CultivationPlanRequest, AIChatInput, ValidateParamsRequest
-from ..dependencies import get_user_or_create
+# CORRECCIÓN: Importamos de forma absoluta desde la raíz del 'backend'.
+from database import User
+from schemas import CultivationPlanRequest, AIChatInput, ValidateParamsRequest
+from dependencies import get_user_or_create
 
 router = APIRouter(
     prefix="/cultivation",
@@ -14,6 +14,7 @@ router = APIRouter(
 
 @router.post("/generate-plan")
 def generate_cultivation_plan(request: CultivationPlanRequest, user: User = Depends(get_user_or_create)):
+    # ... (lógica sin cambios)
     crop, system, materials, tips = "", "", "", ""
     if request.experience == 'principiante':
         tips += "Como estás empezando, nos enfocaremos en cultivos resistentes y de rápido crecimiento. ¡El éxito inicial es clave para la motivación! "
@@ -44,6 +45,7 @@ def generate_cultivation_plan(request: CultivationPlanRequest, user: User = Depe
 
 @router.post("/chat")
 def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_create)):
+    # ... (lógica sin cambios)
     question = request.question.lower()
     response, image_prompt = "", ""
     if "plaga" in question or "bicho" in question:
@@ -62,6 +64,7 @@ def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_crea
 
 @router.post("/validate-parameters")
 def validate_cultivation_parameters(request: ValidateParamsRequest, user: User = Depends(get_user_or_create)):
+    # ... (lógica sin cambios)
     is_valid = True
     advice = "¡Tus parámetros están excelentes! Sigue así para un crecimiento óptimo."
     if request.method == 'hydroponics':
@@ -82,4 +85,3 @@ def validate_cultivation_parameters(request: ValidateParamsRequest, user: User =
             is_valid = False
             advice = "Resi: La humedad del suelo no es la ideal (30%-60%). Asegúrate de regar correctamente para evitar estrés hídrico o pudrición de raíces."
     return {"isValid": is_valid, "advice": advice}
-
