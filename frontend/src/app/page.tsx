@@ -7,7 +7,7 @@ import FloatingActionButton from "@/components/FloatingActionButton";
 import Modal from "@/components/Modal";
 import AddExpenseForm from "@/components/AddExpenseForm";
 import { useSession } from "next-auth/react";
-import { useState, useEffect, useCallback } from "react"; // CORRECCIÓN BUCLE: Se importa useCallback
+import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import VoiceChat from "@/components/VoiceChat";
 import CultivationModule from "@/components/CultivationModule";
@@ -34,13 +34,12 @@ export default function HomePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [initialExpenseText, setInitialExpenseText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [openAccordionId, setOpenAccordionId] = useState<string | null>(null); // Inicia cerrado
+  const [openAccordionId, setOpenAccordionId] = useState<string | null>(null);
   const [selectedGardeningMethod, setSelectedGardeningMethod] = useState('hydroponics');
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [sharedFinancialData, setSharedFinancialData] = useState<{ supermarketSpending: number } | null>(null);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
-
   const { actionToPerform, clearAction } = useResiVoice();
 
   useEffect(() => {
@@ -62,7 +61,6 @@ export default function HomePage() {
           });
           const completed = response.data.onboarding_completed;
           setHasCompletedOnboarding(completed);
-          // Si completó el onboarding, abrimos el acordeón de finanzas por defecto
           if (completed) {
             setOpenAccordionId('mis-finanzas');
           } else {
@@ -70,10 +68,10 @@ export default function HomePage() {
           }
         } catch (error) {
           console.error("Error al chequear el estado de onboarding:", error);
-          setOpenAccordionId('primeros-pasos'); // Si hay error, mostrar onboarding
+          setOpenAccordionId('primeros-pasos');
         }
       } else {
-        setOpenAccordionId('primeros-pasos'); // Si no hay sesión, mostrar onboarding
+        setOpenAccordionId('primeros-pasos');
       }
       setIsLoading(false);
     };
@@ -107,17 +105,17 @@ export default function HomePage() {
     setOpenAccordionId('mis-finanzas');
   };
 
-  // CORRECCIÓN BUCLE: Envolvemos la función con useCallback para estabilizar su referencia.
   const handleFinancialDataLoaded = useCallback((data: { supermarketSpending: number }) => {
     setSharedFinancialData(data);
-  }, []); // El array de dependencias vacío asegura que la función nunca cambie.
+  }, []);
 
   const moduleTitle = `Módulo 2: Tu ${selectedGardeningMethod === 'hydroponics' ? 'Sistema Hidropónico' : 'Huerto Orgánico'}`;
   
   return (
     <>
       <Header refreshTrigger={dataRefreshKey} />
-      <div className="flex">
+      {/* CORRECCIÓN ESTÉTICA: Se añade bg-gray-900 al div principal y se elimina el div wrapper del Sidebar */}
+      <div className="flex bg-gray-900">
         <Sidebar 
           isOpen={isSidebarOpen} 
           onOpen={() => setIsSidebarOpen(true)} 
@@ -125,7 +123,7 @@ export default function HomePage() {
           onSidebarClick={handleSidebarClick}
         />
         
-        <main className="flex-1 flex flex-col items-center p-4 md:p-8 bg-gray-900 text-white font-sans md:ml-20 pt-20">
+        <main className="flex-1 flex flex-col items-center p-4 md:p-8 text-white font-sans md:ml-20 pt-20">
           <HeroSection />
           
           <AnimatedMessage messages={[
@@ -162,7 +160,6 @@ export default function HomePage() {
                   <p>Por favor, completá los "Primeros Pasos" para activar este módulo.</p>
                 </div>
               ) : (
-                // CORRECCIÓN BUCLE: Le pasamos la prop 'isOpen' al módulo.
                 <FinanceModule 
                   key={dataRefreshKey} 
                   onDataLoaded={handleFinancialDataLoaded}

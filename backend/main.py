@@ -18,7 +18,7 @@ from pydub import AudioSegment
 import google.generativeai as genai
 
 # Importamos los routers de los módulos
-from .routers import finance, cultivation, family
+from routers import finance, cultivation, family
 
 # --- CONFIGURACIÓN DE LA BASE DE DATOS (Producción y Local) ---
 DATABASE_URL = os.environ.get("DATABASE_URL")
