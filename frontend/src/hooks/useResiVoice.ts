@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import toast from 'react-hot-toast';
 
@@ -46,51 +46,93 @@ const shuffleConsejos = () => {
 export const useResiVoice = () => {
   const [responseToSpeak, setResponseToSpeak] = useState('');
   const [actionToPerform, setActionToPerform] = useState<{ type: string; payload?: any } | null>(null);
-  // Nuevo estado para controlar si el saludo de bienvenida ya se ha dicho
   const [hasSpokenWelcome, setHasSpokenWelcome] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [hasShownListeningToast, setHasShownListeningToast] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  
+  const tipIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const getVoices = () => {
+        setAvailableVoices(window.speechSynthesis.getVoices());
+      };
+      getVoices();
+      window.speechSynthesis.onvoiceschanged = getVoices;
+    }
+  }, []);
 
   const speak = useCallback((text: string) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    if (typeof window === 'undefined' || !window.speechSynthesis || availableVoices.length === 0) {
+      console.warn("SpeechSynthesis no está disponible o las voces no se han cargado aún.");
+      return;
+    }
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     
-    const setVoice = () => {
-      const voices = window.speechSynthesis.getVoices();
-      const googleSpanishVoices = voices.filter(voice => voice.lang.startsWith('es') && voice.name.includes('Google'));
-      
-      utterance.voice = googleSpanishVoices[1] || googleSpanishVoices[0] || voices.find(v => v.lang.startsWith('es')) || voices[0];
-      
-      if (utterance.voice) {
-        utterance.lang = utterance.voice.lang;
-        utterance.rate = 1.1;
-        utterance.pitch = 1.2;
-        window.speechSynthesis.speak(utterance);
-      } else {
-        console.error("No se encontró una voz de Google en español.");
-      }
-    };
+    // **CORRECCIÓN:** Se añaden los callbacks para el estado 'speaking'
+    utterance.onstart = () => setSpeaking(true);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+
+    let selectedVoice = null;
     
-    if (window.speechSynthesis.getVoices().length > 0) {
-      setVoice();
-    } else {
-      window.speechSynthesis.onvoiceschanged = setVoice;
+    const googleSpanishVoices = availableVoices.filter(voice => 
+      voice.lang.startsWith('es') && voice.name.includes('Google')
+    );
+
+    // Prioridad 1: Buscar una voz femenina de Google
+    selectedVoice = googleSpanishVoices.find(voice => 
+        voice.name.toLowerCase().includes('femenino') || voice.name.toLowerCase().includes('wavenet-f')
+    );
+
+    // Prioridad 2: Si no se encontró una voz femenina explícita, usar la segunda voz de Google.
+    if (!selectedVoice && googleSpanishVoices.length > 1) {
+      selectedVoice = googleSpanishVoices[1];
     }
-  }, []);
+    
+    if (!selectedVoice) {
+      selectedVoice = availableVoices.find(voice => 
+          voice.lang.startsWith('es') && (voice.name.toLowerCase().includes('femenino') || voice.name.toLowerCase().includes('f'))
+      );
+    }
+    
+    if (!selectedVoice) {
+      selectedVoice = availableVoices.find(voice => voice.lang.startsWith('es'));
+    }
+
+    if (!selectedVoice) {
+      selectedVoice = availableVoices[0];
+    }
+    
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      utterance.lang = selectedVoice.lang;
+      utterance.rate = 1.1;
+      utterance.pitch = 1.2;
+      window.speechSynthesis.speak(utterance);
+    } else {
+      console.error("No se encontró una voz de Google en español femenina ni una nativa compatible.");
+    }
+  }, [availableVoices]);
 
   const { transcript, finalTranscript, listening, resetTranscript, browserSupportsSpeechRecognition } = useSpeechRecognition();
 
   const startListening = () => {
     if (browserSupportsSpeechRecognition) {
-      // El saludo de bienvenida ahora se activa con la primera interacción del usuario.
       if (!hasSpokenWelcome) {
-        const welcomeMessage = "Hola, soy Resi. Presioná de nuevo y decime un gasto para registrarlo, por ejemplo: 5000 pesos en nafta.";
+        const welcomeMessage = "Hola, soy Resi. Presioná el boton con el MAS y decime un gasto para registrarlo, por ejemplo: 5000 pesos en nafta.";
         speak(welcomeMessage);
         setHasSpokenWelcome(true);
       }
       resetTranscript();
       SpeechRecognition.startListening({ continuous: false, language: 'es-AR' });
-      toast('¡Te escucho!', { icon: '🎤', duration: 2000 });
+      if (!hasShownListeningToast) {
+       // toast('¡Te escucho!', { icon: '🎤', duration: 2000 });
+       // setHasShownListeningToast(true);
+      }
     } else {
       toast.error('Tu navegador no soporta el reconocimiento de voz.');
     }
@@ -101,7 +143,6 @@ export const useResiVoice = () => {
   useEffect(() => {
     if (finalTranscript) {
       const command = finalTranscript.toLowerCase();
-      // Lógica para interpretar el comando de voz del usuario
       if (command.includes("registrar") || command.includes("gasto") || command.includes("gasté")) {
         setActionToPerform({ type: 'OPEN_ADD_EXPENSE_MODAL_WITH_TEXT', payload: finalTranscript });
         speak('Entendido. Revisá los datos y guardá el gasto.');
@@ -117,30 +158,35 @@ export const useResiVoice = () => {
     }
   }, [responseToSpeak, speak]);
 
-  // Lógica para las trivias (ahora funciona correctamente)
   useEffect(() => {
-    shuffleConsejos();
-    const tipInterval = setInterval(() => {
-      // La trivia solo se activa si no estamos escuchando y si el saludo inicial ya se dio.
-      if (!listening && hasSpokenWelcome) {
-        if (consejoIndex >= shuffledConsejos.length) {
-          shuffleConsejos();
-        }
-        speak(shuffledConsejos[consejoIndex]);
-        consejoIndex++;
+    if (hasSpokenWelcome) {
+      shuffleConsejos();
+      if (tipIntervalRef.current) {
+        clearInterval(tipIntervalRef.current);
       }
-    }, 45000); // 45 segundos
+      
+      tipIntervalRef.current = setInterval(() => {
+        if (!listening) {
+          if (consejoIndex >= shuffledConsejos.length) {
+            shuffleConsejos();
+          }
+          speak(shuffledConsejos[consejoIndex]);
+          consejoIndex++;
+        }
+      }, 45000);
 
-    // Función de limpieza para evitar que se acumulen timers.
+    }
+
     return () => {
-      clearInterval(tipInterval);
+      if (tipIntervalRef.current) {
+        clearInterval(tipIntervalRef.current);
+      }
       window.speechSynthesis.cancel();
     };
   }, [speak, listening, hasSpokenWelcome]);
 
   const clearAction = () => setActionToPerform(null);
 
-  // ESTA ES LA PARTE QUE FALTABA
   return { 
     listening, 
     startListening, 
@@ -148,6 +194,9 @@ export const useResiVoice = () => {
     browserSupportsSpeechRecognition, 
     actionToPerform,
     clearAction,
-    transcript 
+    transcript,
+    finalTranscript,
+    speaking,
+    setResponseToSpeak
   };
 };

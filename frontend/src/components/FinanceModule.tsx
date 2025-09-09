@@ -10,6 +10,7 @@ import { FaMoneyBillWave, FaBullseye, FaHistory, FaChartLine, FaSync, FaExclamat
 import { useSession, signIn } from 'next-auth/react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import apiClient from '@/lib/apiClient';
 
 // CORRECCIÓN: Tipado estricto para las props.
 interface TabButtonProps {
@@ -81,10 +82,10 @@ export default function FinanceModule({ onDataLoaded }: FinanceModuleProps) {
     try {
       const apiHeaders = { headers: { 'Authorization': `Bearer ${session.user.email}` } };
       const [summaryRes, budgetRes, expensesRes, goalsRes] = await Promise.all([
-        axios.get('http://localhost:8000/analysis/resilience-summary', apiHeaders),
-        axios.get('http://localhost:8000/budget', apiHeaders),
-        axios.get('http://localhost:8000/expenses', apiHeaders),
-        axios.get('http://localhost:8000/goals', apiHeaders),
+        apiClient.get('/analysis/resilience-summary', apiHeaders),
+        apiClient.get('/budget', apiHeaders),
+        apiClient.get('/expenses', apiHeaders),
+        apiClient.get('/goals', apiHeaders),
       ]);
       const allData: FinancialData = {
         resilienceSummary: summaryRes.data,
@@ -134,7 +135,7 @@ export default function FinanceModule({ onDataLoaded }: FinanceModuleProps) {
   return (
     <div className="w-full bg-gray-800 rounded-lg p-2 md:p-4">
       {financialData?.resilienceSummary && <ResilienceSummary summary={financialData.resilienceSummary} />}
-      <div className="flex border-b border-gray-700">
+      <div className="flex flex-wrap border-b border-gray-700">
         <TabButton isActive={activeTab === 'planificador'} onClick={() => setActiveTab('planificador')} icon={FaMoneyBillWave}>Planificador</TabButton>
         <TabButton isActive={activeTab === 'metas'} onClick={() => setActiveTab('metas')} icon={FaBullseye}>Metas de Ahorro</TabButton>
         <TabButton isActive={activeTab === 'historial'} onClick={() => setActiveTab('historial')} icon={FaHistory}>Historial</TabButton>

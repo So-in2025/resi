@@ -3,13 +3,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signIn } from 'next-auth/react';
 import { 
   FaSeedling, FaCalculator, FaTools, FaBook, FaRobot,
   FaCheckCircle, FaExclamationCircle, FaDollarSign, FaBoxes, FaLeaf, FaMicrochip, FaDownload, FaImage, FaTrashAlt, FaSun, FaLightbulb, FaSmile, FaMapMarkerAlt
 } from "react-icons/fa";
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import apiClient from '@/lib/apiClient'; // Usamos nuestro apiClient
 
 // CORRECCIÓN: Definimos tipos para las props
 interface TabButtonProps {
@@ -44,6 +45,8 @@ interface AiPlanResult {
     materials: string;
     projectedSavings: string;
     tips: string;
+    imagePrompt?: string; // Hacemos esta opcional
+
 }
 
 // CORRECCIÓN: Tipado del objeto de resultado de validación.
@@ -53,7 +56,7 @@ interface ValidationResult {
 }
 
 const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModuleProps) => {
-  const { data: session } = useSession(); // CORRECCIÓN 2: Obtenemos la sesión del usuario.
+  const { data: session, status } = useSession(); // CORRECCIÓN 2: Obtenemos la sesión del usuario.
   const [method, setMethod] = useState(initialMethod);
   const [activeTab, setActiveTab] = useState('planificacion');
 
@@ -203,6 +206,20 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
 
   const isPlanButtonDisabled = !space || !experience || !location || !initialBudget || (method === 'hydroponics' && !light) || (method === 'organic' && !soilType) || loadingAiPlan;
 
+    // +++ COMIENZA EL BLOQUE A AGREGAR +++
+  if (status === 'unauthenticated') {
+    return (
+        <div className="text-center p-8">
+            <h3 className="text-2xl font-bold text-white mb-4">Tu Huerto Inteligente te Espera</h3>
+            <p className="text-gray-300 mb-6">Iniciá sesión para recibir planes de cultivo personalizados por la IA, controlar tus parámetros y descubrir cuánto podés ahorrar.</p>
+            <button onClick={() => signIn('google')} className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold">
+                Ingresar para empezar
+            </button>
+        </div>
+    );
+  }
+  // +++ TERMINA EL BLOQUE A AGREGAR +++
+  
   return (
     <div className="space-y-6 text-gray-300">
       <div className="bg-gray-700/50 p-4 rounded-lg text-center">
@@ -417,11 +434,12 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
                   <p className="ml-2 text-green-400">Resi está pensando...</p>
                 </div>
               )}
-              <div className="flex space-x-2">
-                <input type="text" className="flex-1 bg-gray-800 border border-gray-600 rounded-md shadow-sm p-2 text-white" placeholder="Ej: ¿Qué hago si mi planta tiene plagas?" value={aiQuestion} onChange={(e) => setAiQuestion(e.target.value)}/>
-                <button onClick={() => sendAiQuestion()} disabled={loadingAiChat || !aiQuestion.trim()} className="bg-green-500 text-white px-4 rounded-md hover:bg-green-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"><FaRobot /></button>
-                <button onClick={() => sendAiQuestion(true)} disabled={loadingAiChat || !aiQuestion.trim()} className="bg-blue-500 text-white px-4 rounded-md hover:bg-blue-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"><FaImage /></button>
-                <button onClick={clearChat} className="bg-red-500 text-white px-4 rounded-md hover:bg-red-600 transition-colors duration-200"><FaTrashAlt /></button>
+              {/* CORRECCIÓN: Se añade flex-wrap para que los botones se acomoden en pantallas chicas */}
+              <div className="flex space-x-2 flex-wrap gap-2">
+                <input type="text" className="flex-1 bg-gray-800 p-2 rounded-md" placeholder="Ej: ¿Qué hago si mi planta tiene plagas?" value={aiQuestion} onChange={(e) => setAiQuestion(e.target.value)} />
+                <button onClick={() => sendAiQuestion(false)} disabled={loadingAiChat || !aiQuestion.trim()} className="p-2 bg-green-500 rounded-md"><FaRobot /></button>
+                <button onClick={() => sendAiQuestion(true)} disabled={loadingAiChat || !aiQuestion.trim()} className="p-2 bg-blue-500 rounded-md"><FaImage /></button>
+                <button onClick={clearChat} className="p-2 bg-red-500 rounded-md"><FaTrashAlt /></button>
               </div>
             </div>
           </div>

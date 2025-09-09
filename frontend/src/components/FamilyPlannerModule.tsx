@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signIn } from 'next-auth/react';
 import { FaUsers, FaAppleAlt, FaPiggyBank, FaGamepad, FaArrowLeft, FaArrowRight, FaRobot, FaMicrochip, FaUserPlus, FaTrashAlt } from 'react-icons/fa';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -42,7 +42,7 @@ interface AiPlan {
 
 export default function FamilyPlannerModule() {
   // --- ESTADOS ---
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [step, setStep] = useState(1);
   const totalSteps = 4;
 
@@ -200,6 +200,20 @@ export default function FamilyPlannerModule() {
     }
   };
 
+   // +++ COMIENZA EL BLOQUE A AGREGAR +++
+  if (status === 'unauthenticated') {
+    return (
+        <div className="text-center p-8">
+            <h3 className="text-2xl font-bold text-white mb-4">Creá el Mapa de Ruta de tu Familia</h3>
+            <p className="text-gray-300 mb-6">Iniciá sesión para que la IA de Resi te ayude a crear un plan de comidas, ahorro y ocio adaptado a las necesidades de tu hogar.</p>
+            <button onClick={() => signIn('google')} className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold">
+                Ingresar para empezar
+            </button>
+        </div>
+    );
+  }
+  // +++ TERMINA EL BLOQUE A AGREGAR +++
+  
   return (
     <div className="bg-gray-800 rounded-lg p-6 md:p-8 text-white">
       <StepIndicator currentStep={step} totalSteps={totalSteps} />

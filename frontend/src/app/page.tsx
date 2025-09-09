@@ -1,4 +1,3 @@
-// En: frontend/src/app/page.tsx
 'use client';
 
 import Accordion from "@/components/Accordion";
@@ -7,7 +6,7 @@ import FloatingActionButton from "@/components/FloatingActionButton";
 import Modal from "@/components/Modal";
 import AddExpenseForm from "@/components/AddExpenseForm";
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import VoiceChat from "@/components/VoiceChat";
 import CultivationModule from "@/components/CultivationModule";
@@ -15,8 +14,8 @@ import OnboardingFlow from "@/components/OnboardingFlow";
 import Header from "@/components/Header";
 import FinanceModule from '@/components/FinanceModule'; 
 import FamilyPlannerModule from "@/components/FamilyPlannerModule";
-import apiClient from "@/lib/apiClient"; // Importamos el cliente de API centralizado
-import { useResiVoice } from "@/hooks/useResiVoice"; // Importamos el hook de voz
+import apiClient from "@/lib/apiClient";
+import { useResiVoice } from "@/hooks/useResiVoice";
 
 // --- SUBCOMPONENTES ---
 const HeroSection = () => (
@@ -35,44 +34,59 @@ export default function HomePage() {
   // --- ESTADOS PRINCIPALES DEL ORQUESTADOR ---
   const { data: session, status } = useSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [initialExpenseText, setInitialExpenseText] = useState(''); // Estado para el texto del dictado
+  const [initialExpenseText, setInitialExpenseText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [openAccordionId, setOpenAccordionId] = useState<string | null>('mis-finanzas');
   const [selectedGardeningMethod, setSelectedGardeningMethod] = useState('hydroponics');
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [sharedFinancialData, setSharedFinancialData] = useState<{ supermarketSpending: number } | null>(null);
-
-  // CORRECCIÓN: Estado 'key' para forzar la actualización de los módulos de datos
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
-  // CORRECCIÓN: Se activa el hook de voz para escuchar comandos globales
-  const { actionToPerform, clearAction } = useResiVoice();
+  const [voiceActivated, setVoiceActivated] = useState(false);
+  const initialActivationListenerRef = useRef<(() => void) | null>(null);
 
-  // --- EFECTOS Y MANEJADORES DE EVENTOS ---
+  const { actionToPerform, clearAction, startListening, speaking } = useResiVoice();
 
-  // Efecto para manejar las acciones del micrófono global (ej: abrir modal)
+  useEffect(() => {
+    if (!voiceActivated) {
+      const activateOnInteraction = () => {
+        setVoiceActivated(true);
+
+        if (initialActivationListenerRef.current) {
+          window.removeEventListener('scroll', initialActivationListenerRef.current);
+          window.removeEventListener('click', initialActivationListenerRef.current);
+        }
+
+        startListening();
+      };
+      
+      initialActivationListenerRef.current = activateOnInteraction;
+
+      window.addEventListener('scroll', activateOnInteraction, { once: true });
+      window.addEventListener('click', activateOnInteraction, { once: true });
+    }
+  }, [voiceActivated, startListening]);
+
   useEffect(() => {
     if (actionToPerform) {
       if (actionToPerform.type === 'OPEN_ADD_EXPENSE_MODAL_WITH_TEXT') {
         setInitialExpenseText(actionToPerform.payload);
         setIsModalOpen(true);
       }
-      // Limpiamos la acción para que no se vuelva a ejecutar
       clearAction();
     }
   }, [actionToPerform, clearAction]);
 
-  // Efecto para verificar el estado de onboarding del usuario
   useEffect(() => {
     const checkOnboardingStatus = async () => {
       if (session?.user?.email) {
         try {
-          const response = await apiClient.get('/check-onboarding', { // Usamos apiClient
+          const response = await apiClient.get('/check-onboarding', {
             headers: { 'Authorization': `Bearer ${session.user.email}` },
           });
           setHasCompletedOnboarding(response.data.onboarding_completed);
-        } catch (error) { 
+        } catch (error) {
           console.error("Error al chequear el estado de onboarding:", error);
         }
       }
@@ -86,13 +100,11 @@ export default function HomePage() {
       setIsLoading(false);
     }
   }, [session, status]);
-  
-  // CORRECCIÓN: El manejador ahora fuerza una recarga de datos
+
   const handleExpenseAdded = () => {
     setIsModalOpen(false);
     setInitialExpenseText('');
-    // Incrementamos la key. Esto forzará a los componentes que la usen a recargarse.
-    setDataRefreshKey(prevKey => prevKey + 1); 
+    setDataRefreshKey(prevKey => prevKey + 1);
   };
 
   const handleAccordionToggle = (id: string) => {
@@ -214,7 +226,7 @@ export default function HomePage() {
             </Accordion>
           </div>
 
-          <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-4">
+           <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-25">
             <VoiceChat />
             <FloatingActionButton onClick={() => setIsModalOpen(true)} />
           </div>

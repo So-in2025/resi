@@ -1,10 +1,9 @@
-// En: frontend/src/components/AddExpenseForm.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useSession } from 'next-auth/react';
-import MicRecorder from 'mic-recorder-to-mp3';
+import { FaMicrophone, FaStop, FaPaperPlane } from 'react-icons/fa';
 import apiClient from '@/lib/apiClient';
 
 interface AddExpenseFormProps {
@@ -19,77 +18,89 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
   const [textInput, setTextInput] = useState('');
   const [feedback, setFeedback] = useState('');
 
-  const recorder = useRef<any>(null);
+  // Usamos useRef para mantener la referencia al MediaRecorder entre renderizados
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const audioChunks = useRef<Blob[]>([]);
 
   useEffect(() => {
-      // Inicializamos el recorder en el lado del cliente para evitar errores
-      recorder.current = new MicRecorder({ bitRate: 128 });
-      if (initialText) {
-          setTextInput(initialText);
-      }
+    if (initialText) {
+      setTextInput(initialText);
+    }
   }, [initialText]);
 
-  const startRecording = () => {
+  const startRecording = async () => {
     if (!session) {
-        setFeedback('Inicia sesión para grabar un gasto.');
-        return;
+      setFeedback('Inicia sesión para grabar un gasto.');
+      return;
     }
-    if (recorder.current) {
-        recorder.current.start().then(() => {
-          setIsRecording(true);
-          setFeedback('Grabando... Presiona de nuevo para detener.');
-        }).catch((e: any) => {
-            console.error("Error al iniciar grabación:", e)
-            toast.error("No se pudo iniciar la grabación. Revisa los permisos del micrófono.")
-        });
+    try {
+      // Pedimos acceso al micrófono del usuario
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Creamos una nueva instancia de MediaRecorder
+      mediaRecorder.current = new MediaRecorder(stream);
+      
+      // Cuando haya datos de audio disponibles, los guardamos
+      mediaRecorder.current.ondataavailable = (event) => {
+        audioChunks.current.push(event.data);
+      };
+      
+      // Cuando se detiene la grabación, llamamos a la función para enviar el audio
+      mediaRecorder.current.onstop = handleSendAudio;
+      
+      // Limpiamos chunks anteriores y empezamos a grabar
+      audioChunks.current = [];
+      mediaRecorder.current.start();
+      setIsRecording(true);
+      setFeedback('Grabando... Presiona de nuevo para detener.');
+
+    } catch (error) {
+      console.error("Error al acceder al micrófono:", error);
+      toast.error("No se pudo acceder al micrófono. Revisa los permisos.");
     }
   };
 
   const stopRecording = () => {
-    if (!recorder.current) return;
-
-    recorder.current.stop().getMp3().then(async ([buffer, blob]: [number[], Blob]) => {
+    if (mediaRecorder.current && mediaRecorder.current.state === 'recording') {
+      mediaRecorder.current.stop();
       setIsRecording(false);
-      setIsLoading(true);
-      setFeedback('Procesando audio...');
-      
-      if (!session?.user?.email) {
-          setFeedback("Error: No se encontró email de usuario en la sesión.");
-          setIsLoading(false);
-          return;
-      }
+      setFeedback('Procesando...');
+    }
+  };
 
-      const audioFile = new File([blob], "audio.mp3", { type: blob.type });
-      const formData = new FormData();
-      formData.append("audio_file", audioFile);
+  const handleSendAudio = async () => {
+    if (!session?.user?.email) {
+      setFeedback("Error de sesión.");
+      return;
+    }
+    const toastId = toast.loading("Procesando audio...");
+    setIsLoading(true);
 
-      try {
-        const response = await apiClient.post('/transcribe', formData, {
-          headers: { 
-            'Content-Type': 'multipart/form-data',
-            'Authorization': `Bearer ${session.user.email}`
-          }
-        });
-        handleResponse(response.data);
-      } catch (error) {
-        handleError(error);
-      } finally {
-        setIsLoading(false);
-      }
-    }).catch((e: any) => {
-        console.error("Error al detener la grabación:", e)
-        toast.error("Hubo un problema al procesar el audio.")
-        setIsRecording(false);
-    });
+    // Creamos un único archivo de audio a partir de los fragmentos grabados
+    const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' }); // Formato compatible
+    const formData = new FormData();
+    formData.append('audio_file', audioBlob, 'gasto.webm');
+
+    try {
+      const response = await apiClient.post('/transcribe', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${session.user.email}`
+        },
+      });
+      handleResponse(response.data);
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (textInput.trim() === '' || !session?.user?.email) return;
-
     setIsLoading(true);
     setFeedback('Registrando gasto...');
-
     try {
       const response = await apiClient.post('/process-text', 
         { text: textInput },
@@ -107,7 +118,7 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
     if (data?.status?.includes("éxito")) {
       const d = data.data;
       setFeedback(`Registrado: $${d.amount} en ${d.category}`);
-      setTimeout(() => { onExpenseAdded(); }, 1500); // Llama al padre para refrescar
+      setTimeout(() => { onExpenseAdded(); }, 1500);
     } else if (data?.data?.description) {
       setFeedback(`Respuesta: ${data.data.description}`);
       setTextInput('');
