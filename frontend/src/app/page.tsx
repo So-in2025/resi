@@ -1,3 +1,4 @@
+// En: frontend/src/app/page.tsx
 'use client';
 
 import Accordion from "@/components/Accordion";
@@ -6,9 +7,8 @@ import FloatingActionButton from "@/components/FloatingActionButton";
 import Modal from "@/components/Modal";
 import AddExpenseForm from "@/components/AddExpenseForm";
 import { useSession } from "next-auth/react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
-import VoiceChat from "@/components/VoiceChat";
 import CultivationModule from "@/components/CultivationModule";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import Header from "@/components/Header";
@@ -16,8 +16,9 @@ import FinanceModule from '@/components/FinanceModule';
 import FamilyPlannerModule from "@/components/FamilyPlannerModule";
 import apiClient from "@/lib/apiClient";
 import { useResiVoice } from "@/hooks/useResiVoice";
+import VoiceChat from "@/components/VoiceChat"; // Importamos el componente del micrófono
 
-// --- SUBCOMPONENTES ---
+// --- SUBCOMPONENTES (SIN CAMBIOS) ---
 const HeroSection = () => (
   <div className="text-center mb-12 w-full max-w-4xl">
     <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4">
@@ -31,7 +32,6 @@ const HeroSection = () => (
 
 // --- COMPONENTE PRINCIPAL DE LA PÁGINA ---
 export default function HomePage() {
-  // --- ESTADOS PRINCIPALES DEL ORQUESTADOR ---
   const { data: session, status } = useSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [initialExpenseText, setInitialExpenseText] = useState('');
@@ -43,30 +43,8 @@ export default function HomePage() {
   const [sharedFinancialData, setSharedFinancialData] = useState<{ supermarketSpending: number } | null>(null);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
-  const [voiceActivated, setVoiceActivated] = useState(false);
-  const initialActivationListenerRef = useRef<(() => void) | null>(null);
-
-  const { actionToPerform, clearAction, startListening, speaking } = useResiVoice();
-
-  useEffect(() => {
-    if (!voiceActivated) {
-      const activateOnInteraction = () => {
-        setVoiceActivated(true);
-
-        if (initialActivationListenerRef.current) {
-          window.removeEventListener('scroll', initialActivationListenerRef.current);
-          window.removeEventListener('click', initialActivationListenerRef.current);
-        }
-
-        startListening();
-      };
-      
-      initialActivationListenerRef.current = activateOnInteraction;
-
-      window.addEventListener('scroll', activateOnInteraction, { once: true });
-      window.addEventListener('click', activateOnInteraction, { once: true });
-    }
-  }, [voiceActivated, startListening]);
+  // CORRECCIÓN: Usamos el hook de voz aquí en el orquestador.
+  const { actionToPerform, clearAction } = useResiVoice();
 
   useEffect(() => {
     if (actionToPerform) {
@@ -86,7 +64,7 @@ export default function HomePage() {
             headers: { 'Authorization': `Bearer ${session.user.email}` },
           });
           setHasCompletedOnboarding(response.data.onboarding_completed);
-        } catch (error) {
+        } catch (error) { 
           console.error("Error al chequear el estado de onboarding:", error);
         }
       }
@@ -100,11 +78,11 @@ export default function HomePage() {
       setIsLoading(false);
     }
   }, [session, status]);
-
+  
   const handleExpenseAdded = () => {
     setIsModalOpen(false);
     setInitialExpenseText('');
-    setDataRefreshKey(prevKey => prevKey + 1);
+    setDataRefreshKey(prevKey => prevKey + 1); 
   };
 
   const handleAccordionToggle = (id: string) => {
@@ -128,21 +106,18 @@ export default function HomePage() {
 
   const moduleTitle = `Módulo 2: Tu ${selectedGardeningMethod === 'hydroponics' ? 'Sistema Hidropónico' : 'Huerto Orgánico'}`;
   
-  // --- RENDERIZADO DEL COMPONENTE ---
   return (
     <>
       <Header refreshTrigger={dataRefreshKey} />
       <div className="flex">
-        <div className="fixed top-0 left-0 h-screen md:pt-16 z-40">
-          <Sidebar 
-            isOpen={isSidebarOpen} 
-            onOpen={() => setIsSidebarOpen(true)} 
-            onClose={() => setIsSidebarOpen(false)}
-            onSidebarClick={handleSidebarClick}
-          />
-        </div>
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          onOpen={() => setIsSidebarOpen(true)} 
+          onClose={() => setIsSidebarOpen(false)}
+          onSidebarClick={handleSidebarClick}
+        />
         
-        <main className="flex-1 flex flex-col items-center p-4 md:p-8 bg-gray-900 text-white font-sans md:ml-20 pt-16">
+        <main className="flex-1 flex flex-col items-center p-4 md:p-8 bg-gray-900 text-white font-sans md:ml-20 pt-20">
           <HeroSection />
           
           <AnimatedMessage messages={[
@@ -226,7 +201,8 @@ export default function HomePage() {
             </Accordion>
           </div>
 
-           <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end space-y-25">
+          {/* CORRECCIÓN: Contenedor unificado para los botones flotantes */}
+          <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-4">
             <VoiceChat />
             <FloatingActionButton onClick={() => setIsModalOpen(true)} />
           </div>

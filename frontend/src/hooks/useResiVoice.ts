@@ -3,8 +3,10 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import toast from 'react-hot-toast';
+import apiClient from '@/lib/apiClient';
+import { useSession } from 'next-auth/react';
 
-// TU LISTA COMPLETA DE CONSEJOS Y TRIVIAS (INTACTA)
+// --- LÓGICA DE CONSEJOS (SIN CAMBIOS) ---
 const consejos = [
   "Recordá registrar hasta el gasto más chiquito. ¡Esos son los que más suman a fin de mes!",
   "Una vez por semana, tomate 5 minutos para chusmear tu 'Historial'. Te va a sorprender lo que podés descubrir.",
@@ -33,157 +35,123 @@ let shuffledConsejos: string[] = [];
 let consejoIndex = 0;
 
 const shuffleConsejos = () => {
-  const array = [...consejos];
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-  shuffledConsejos = array;
+  shuffledConsejos = [...consejos].sort(() => 0.5 - Math.random());
   consejoIndex = 0;
 };
 
-
+// --- EL HOOK PRINCIPAL DE VOZ ---
 export const useResiVoice = () => {
-  const [responseToSpeak, setResponseToSpeak] = useState('');
+  const { data: session } = useSession();
   const [actionToPerform, setActionToPerform] = useState<{ type: string; payload?: any } | null>(null);
   const [hasSpokenWelcome, setHasSpokenWelcome] = useState(false);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [hasShownListeningToast, setHasShownListeningToast] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   
   const tipIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const getVoices = () => {
-        setAvailableVoices(window.speechSynthesis.getVoices());
-      };
+      const getVoices = () => setAvailableVoices(window.speechSynthesis.getVoices());
       getVoices();
       window.speechSynthesis.onvoiceschanged = getVoices;
     }
   }, []);
 
   const speak = useCallback((text: string) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis || availableVoices.length === 0) {
-      console.warn("SpeechSynthesis no está disponible o las voces no se han cargado aún.");
-      return;
-    }
+    if (typeof window === 'undefined' || !window.speechSynthesis || availableVoices.length === 0) return;
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // **CORRECCIÓN:** Se añaden los callbacks para el estado 'speaking'
     utterance.onstart = () => setSpeaking(true);
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
-
-    let selectedVoice = null;
     
-    const googleSpanishVoices = availableVoices.filter(voice => 
-      voice.lang.startsWith('es') && voice.name.includes('Google')
-    );
+    const googleSpanishVoice = availableVoices.find(v => v.lang.startsWith('es') && v.name.includes('Google'));
+    const nativeSpanishVoice = availableVoices.find(v => v.lang.startsWith('es'));
 
-    // Prioridad 1: Buscar una voz femenina de Google
-    selectedVoice = googleSpanishVoices.find(voice => 
-        voice.name.toLowerCase().includes('femenino') || voice.name.toLowerCase().includes('wavenet-f')
-    );
-
-    // Prioridad 2: Si no se encontró una voz femenina explícita, usar la segunda voz de Google.
-    if (!selectedVoice && googleSpanishVoices.length > 1) {
-      selectedVoice = googleSpanishVoices[1];
-    }
-    
-    if (!selectedVoice) {
-      selectedVoice = availableVoices.find(voice => 
-          voice.lang.startsWith('es') && (voice.name.toLowerCase().includes('femenino') || voice.name.toLowerCase().includes('f'))
-      );
-    }
-    
-    if (!selectedVoice) {
-      selectedVoice = availableVoices.find(voice => voice.lang.startsWith('es'));
-    }
-
-    if (!selectedVoice) {
-      selectedVoice = availableVoices[0];
-    }
-    
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
-      utterance.lang = selectedVoice.lang;
-      utterance.rate = 1.1;
-      utterance.pitch = 1.2;
-      window.speechSynthesis.speak(utterance);
-    } else {
-      console.error("No se encontró una voz de Google en español femenina ni una nativa compatible.");
-    }
+    utterance.voice = googleSpanishVoice || nativeSpanishVoice || availableVoices[0];
+    utterance.lang = utterance.voice?.lang || 'es-AR';
+    utterance.rate = 1.1;
+    utterance.pitch = 1.2;
+    window.speechSynthesis.speak(utterance);
   }, [availableVoices]);
 
   const { transcript, finalTranscript, listening, resetTranscript, browserSupportsSpeechRecognition } = useSpeechRecognition();
 
-  const startListening = () => {
+  const startListening = useCallback(() => {
+    if (speaking) { // No escuchar si Resi está hablando
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+    }
     if (browserSupportsSpeechRecognition) {
       if (!hasSpokenWelcome) {
-        const welcomeMessage = "Hola, soy Resi. Presioná el boton con el MAS y decime un gasto para registrarlo, por ejemplo: 5000 pesos en nafta.";
+        const welcomeMessage = "Hola, soy Resi. ¿En qué te puedo ayudar?";
         speak(welcomeMessage);
         setHasSpokenWelcome(true);
       }
       resetTranscript();
       SpeechRecognition.startListening({ continuous: false, language: 'es-AR' });
-      if (!hasShownListeningToast) {
-       // toast('¡Te escucho!', { icon: '🎤', duration: 2000 });
-       // setHasShownListeningToast(true);
-      }
+      toast('¡Te escucho!', { icon: '🎤', duration: 2000 });
     } else {
       toast.error('Tu navegador no soporta el reconocimiento de voz.');
     }
-  };
+  }, [browserSupportsSpeechRecognition, hasSpokenWelcome, resetTranscript, speak, speaking]);
 
   const stopListening = () => SpeechRecognition.stopListening();
 
   useEffect(() => {
-    if (finalTranscript) {
-      const command = finalTranscript.toLowerCase();
-      if (command.includes("registrar") || command.includes("gasto") || command.includes("gasté")) {
-        setActionToPerform({ type: 'OPEN_ADD_EXPENSE_MODAL_WITH_TEXT', payload: finalTranscript });
-        speak('Entendido. Revisá los datos y guardá el gasto.');
-      }
+    const handleCommand = async (command: string) => {
       resetTranscript();
-    }
-  }, [finalTranscript, resetTranscript, speak]);
+      if (!command || !session?.user?.email) return;
 
-  useEffect(() => {
-    if (responseToSpeak) {
-      speak(responseToSpeak);
-      setResponseToSpeak('');
-    }
-  }, [responseToSpeak, speak]);
+      const lowerCaseCommand = command.toLowerCase();
 
-  useEffect(() => {
-    if (hasSpokenWelcome) {
-      shuffleConsejos();
-      if (tipIntervalRef.current) {
-        clearInterval(tipIntervalRef.current);
-      }
-      
-      tipIntervalRef.current = setInterval(() => {
-        if (!listening) {
-          if (consejoIndex >= shuffledConsejos.length) {
-            shuffleConsejos();
-          }
-          speak(shuffledConsejos[consejoIndex]);
-          consejoIndex++;
+      // Lógica para registrar gastos por voz
+      if (lowerCaseCommand.includes("registrar") || lowerCaseCommand.includes("gasté") || lowerCaseCommand.includes("anotá")) {
+        setActionToPerform({ type: 'OPEN_ADD_EXPENSE_MODAL_WITH_TEXT', payload: command });
+        speak('Entendido. Revisá los datos y guardá el gasto.');
+      } else {
+        // Lógica para chatear con la IA
+        const toastId = toast.loading("Resi está pensando...");
+        try {
+          const response = await apiClient.post<{ response: string }>('/chat', { question: command }, {
+            headers: { 'Authorization': `Bearer ${session.user.email}` }
+          });
+          speak(response.data.response);
+          toast.dismiss(toastId);
+        } catch (error) {
+          console.error("Error en el chat con IA:", error);
+          toast.error("No pude procesar tu pregunta.", { id: toastId });
         }
-      }, 45000);
-
-    }
-
-    return () => {
-      if (tipIntervalRef.current) {
-        clearInterval(tipIntervalRef.current);
       }
+    };
+    
+    if (finalTranscript) {
+      handleCommand(finalTranscript);
+    }
+  }, [finalTranscript, resetTranscript, speak, session]);
+
+  useEffect(() => {
+    shuffleConsejos();
+    const startInterval = () => {
+        if (tipIntervalRef.current) clearInterval(tipIntervalRef.current);
+        tipIntervalRef.current = setInterval(() => {
+            if (!listening && !speaking && hasSpokenWelcome) {
+                if (consejoIndex >= shuffledConsejos.length) shuffleConsejos();
+                speak(shuffledConsejos[consejoIndex]);
+                consejoIndex++;
+            }
+        }, 45000);
+    };
+    
+    if (hasSpokenWelcome) startInterval();
+    
+    return () => {
+      if (tipIntervalRef.current) clearInterval(tipIntervalRef.current);
       window.speechSynthesis.cancel();
     };
-  }, [speak, listening, hasSpokenWelcome]);
+  }, [speak, listening, speaking, hasSpokenWelcome]);
 
   const clearAction = () => setActionToPerform(null);
 
@@ -194,9 +162,6 @@ export const useResiVoice = () => {
     browserSupportsSpeechRecognition, 
     actionToPerform,
     clearAction,
-    transcript,
-    finalTranscript,
-    speaking,
-    setResponseToSpeak
+    transcript 
   };
 };

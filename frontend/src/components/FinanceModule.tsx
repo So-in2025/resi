@@ -8,11 +8,9 @@ import History from './History';
 import Analysis from './Analysis';
 import { FaMoneyBillWave, FaBullseye, FaHistory, FaChartLine, FaSync, FaExclamationCircle, FaRobot } from 'react-icons/fa';
 import { useSession, signIn } from 'next-auth/react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import apiClient from '@/lib/apiClient';
 
-// CORRECCIÓN: Tipado estricto para las props.
 interface TabButtonProps {
     isActive: boolean;
     onClick: () => void;
@@ -23,7 +21,9 @@ interface TabButtonProps {
 const TabButton = ({ isActive, onClick, children, icon: Icon }: TabButtonProps) => (
   <button
     onClick={onClick}
-    className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 py-3 font-semibold rounded-t-lg transition-colors text-sm md:text-base ${
+    // CORRECCIÓN ESTÉTICA: Se elimina 'flex-1' para permitir que los botones se apilen en móviles (wrap)
+    // y se añade 'md:flex-1' para que en pantallas medianas y grandes sí ocupen el mismo espacio.
+    className={`md:flex-1 flex items-center justify-center md:justify-start gap-2 px-4 py-3 font-semibold rounded-t-lg transition-colors text-sm md:text-base ${
       isActive ? 'bg-gray-700 text-green-400 border-b-2 border-green-400' : 'bg-gray-800 text-gray-400 hover:bg-gray-700/50'
     }`}
   >
@@ -32,7 +32,6 @@ const TabButton = ({ isActive, onClick, children, icon: Icon }: TabButtonProps) 
   </button>
 );
 
-// CORRECCIÓN: Tipado estricto para las props.
 interface ResilienceSummaryProps {
     summary: {
         title: string;
@@ -56,9 +55,9 @@ export interface FinancialData {
     suggestion: string;
     supermarket_spending: number;
   };
-  budget: any; // Mantengo 'any' aquí porque el tipo no está definido en el archivo.
-  expenses: any[]; // Mantengo 'any[]' aquí por la misma razón.
-  goals: any[]; // Mantengo 'any[]' aquí por la misma razón.
+  budget: any;
+  expenses: any[];
+  goals: any[];
 }
 
 interface FinanceModuleProps {
@@ -102,15 +101,13 @@ export default function FinanceModule({ onDataLoaded }: FinanceModuleProps) {
     } finally {
       setIsLoading(false);
     }
-  // CORRECCIÓN DEFINITIVA: Se elimina `onDataLoaded` del array de dependencias para romper el bucle infinito.
-  // Pero se añade `session` y `status` para evitar la advertencia y asegurar que la función se ejecuta cuando la sesión cambia.
-  }, [session, status]);
+  }, [session, status, onDataLoaded]);
 
   useEffect(() => {
-    if (session) {
+    if (status === 'authenticated') {
         fetchAllData();
     }
-  }, [session, fetchAllData]);
+  }, [status, fetchAllData]);
 
   if (status === 'unauthenticated') {
     return (

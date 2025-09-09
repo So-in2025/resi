@@ -1,5 +1,4 @@
 // En: frontend/src/components/CultivationModule.tsx
-
 'use client';
 
 import { useState } from 'react';
@@ -8,11 +7,11 @@ import {
   FaSeedling, FaCalculator, FaTools, FaBook, FaRobot,
   FaCheckCircle, FaExclamationCircle, FaDollarSign, FaBoxes, FaLeaf, FaMicrochip, FaDownload, FaImage, FaTrashAlt, FaSun, FaLightbulb, FaSmile, FaMapMarkerAlt
 } from "react-icons/fa";
-import axios from 'axios';
 import toast from 'react-hot-toast';
-import apiClient from '@/lib/apiClient'; // Usamos nuestro apiClient
+import apiClient from '@/lib/apiClient'; // CORRECCIÓN: Se importa el apiClient
 
-// CORRECCIÓN: Definimos tipos para las props
+// --- TIPOS Y COMPONENTES INTERNOS ---
+
 interface TabButtonProps {
     isActive: boolean;
     onClick: () => void;
@@ -20,8 +19,7 @@ interface TabButtonProps {
     label: string;
 }
 
-// Componente para los botones de las pestañas
-const TabButton = ({ isActive, onClick, icon: Icon, label }: TabButtonProps) => ( // CORRECCIÓN: Tipado de las props.
+const TabButton = ({ isActive, onClick, icon: Icon, label }: TabButtonProps) => (
   <button
     onClick={onClick}
     className={`flex-1 px-2 py-2 flex flex-col items-center justify-center space-y-1 transition-colors duration-200 
@@ -32,66 +30,65 @@ const TabButton = ({ isActive, onClick, icon: Icon, label }: TabButtonProps) => 
   </button>
 );
 
-// CORRECCIÓN 1: Definimos las props que este componente espera recibir.
 interface CultivationModuleProps {
     initialMethod: string;
     userFinancialData: { supermarketSpending: number } | null;
 }
 
-// CORRECCIÓN: Tipado del objeto de resultado del plan.
 interface AiPlanResult {
     crop: string;
     system: string;
     materials: string;
     projectedSavings: string;
     tips: string;
-    imagePrompt?: string; // Hacemos esta opcional
-
+    imagePrompt?: string; 
 }
 
-// CORRECCIÓN: Tipado del objeto de resultado de validación.
 interface ValidationResult {
     isValid: boolean;
     advice: string;
 }
 
+interface ChatResponse {
+    response: string;
+    imagePrompt?: string;
+}
+
 const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModuleProps) => {
-  const { data: session, status } = useSession(); // CORRECCIÓN 2: Obtenemos la sesión del usuario.
+  const { data: session, status } = useSession();
   const [method, setMethod] = useState(initialMethod);
   const [activeTab, setActiveTab] = useState('planificacion');
 
-  // --- Estados Unificados para Planificación ---
+  // Estados Unificados para Planificación
   const [space, setSpace] = useState('');
   const [experience, setExperience] = useState('');
   const [light, setLight] = useState('');
   const [soilType, setSoilType] = useState('');
   const [location, setLocation] = useState('mendoza');
   const [initialBudget, setInitialBudget] = useState<number | ''>('');
-  const [aiPlanResult, setAiPlanResult] = useState<AiPlanResult | null>(null); // CORRECCIÓN: Tipado estricto.
+  const [aiPlanResult, setAiPlanResult] = useState<AiPlanResult | null>(null);
   const [loadingAiPlan, setLoadingAiPlan] = useState(false);
 
-  // --- Estados Unificados para Control ---
+  // Estados Unificados para Control
   const [ph, setPh] = useState('');
   const [ec, setEc] = useState('');
   const [temp, setTemp] = useState('');
   const [soilMoisture, setSoilMoisture] = useState('');
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null); // CORRECCIÓN: Tipado estricto.
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [aiControlAdvice, setAiControlAdvice] = useState<string | null>(null);
   const [loadingControlAdvice, setLoadingControlAdvice] = useState(false);
 
-  // --- Estados Unificados para Asistencia IA ---
+  // Estados Unificados para Asistencia IA
   const [aiQuestion, setAiQuestion] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [aiImageResponse, setAiImageResponse] = useState<string | null>(null);
   const [loadingAiChat, setLoadingAiChat] = useState(false);
 
-  // --- Estados Unificados para Calculadora de Ahorro ---
+  // Estados Unificados para Calculadora de Ahorro
   const [monthlyVegetableExpense, setMonthlyVegetableExpense] = useState('');
   const [projectedSavings, setProjectedSavings] = useState(0);
 
-  // --- Función de Planificación por IA (CORREGIDA) ---
   const generateAiPlan = async () => {
-    // Verificación de seguridad
     if (!session?.user?.email) {
         toast.error('Debes iniciar sesión para pedir un plan a Resi.');
         return;
@@ -104,15 +101,16 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
       method,
       space,
       experience,
-      ...(method === 'hydroponics' && { light }),
-      ...(method === 'organic' && { soilType }),
+      light: method === 'hydroponics' ? light : undefined,
+      soilType: method === 'organic' ? soilType : undefined,
       location,
       initialBudget: initialBudget || 0,
       supermarketSpending: userFinancialData?.supermarketSpending || 0
     };
 
     try {
-        const response = await axios.post<AiPlanResult>('https://resi-vn4v.onrender.com/cultivation/generate-plan', planRequest, { // CORRECCIÓN: Tipamos la respuesta.
+        // CORRECCIÓN: Se utiliza apiClient en lugar de axios con URL completa.
+        const response = await apiClient.post<AiPlanResult>('/cultivation/generate-plan', planRequest, {
             headers: { 'Authorization': `Bearer ${session.user.email}` }
         });
         setAiPlanResult(response.data);
@@ -125,16 +123,16 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     }
   };
   
-  // --- Función de Validación de Parámetros (CORREGIDA) ---
   const validateParameters = async () => {
     if (!session?.user?.email) {
       toast.error('Debes iniciar sesión para validar parámetros.');
       return;
     }
     setLoadingControlAdvice(true);
-    setAiControlAdvice(null);
+    setAiControlAdvice(null); // Limpiamos el consejo anterior
     try {
-        const response = await axios.post<ValidationResult>('https://resi-vn4v.onrender.com/cultivation/validate-parameters', { // CORRECCIÓN: Tipamos la respuesta.
+        // CORRECCIÓN: Se utiliza apiClient en lugar de axios con URL completa.
+        const response = await apiClient.post<ValidationResult>('/cultivation/validate-parameters', {
             method,
             ph: ph ? parseFloat(ph) : null,
             ec: ec ? parseFloat(ec) : null,
@@ -143,7 +141,7 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
         }, {
             headers: { 'Authorization': `Bearer ${session.user.email}` }
         });
-        setValidationResult(response.data); // CORRECCIÓN: Se asigna el objeto completo para usar `isValid` y `advice`.
+        setValidationResult(response.data);
         setAiControlAdvice(response.data.advice);
     } catch (error) {
         console.error("Error al validar parámetros:", error);
@@ -153,7 +151,6 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     }
   };
   
-  // --- Función de Chat con IA (CORREGIDA) ---
   const sendAiQuestion = async (isImageRequest = false) => {
     if (!aiQuestion.trim() || !session?.user?.email) {
         toast.error('Debes iniciar sesión y escribir una pregunta.');
@@ -163,14 +160,9 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     setAiResponse('');
     setAiImageResponse(null);
     
-    // CORRECCIÓN: Tipado de la respuesta del chat.
-    interface ChatResponse {
-        response: string;
-        imagePrompt?: string;
-    }
-    
     try {
-        const response = await axios.post<ChatResponse>('https://resi-vn4v.onrender.com/cultivation/chat', {
+        // CORRECCIÓN: Se utiliza apiClient en lugar de axios con URL completa.
+        const response = await apiClient.post<ChatResponse>('/cultivation/chat', {
             question: aiQuestion,
             method: method
         }, {
@@ -188,7 +180,6 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     }
   };
   
-  // --- Función Calculadora de Ahorro (Sin cambios) ---
   const calculateSavings = (e: React.FormEvent) => {
     e.preventDefault();
     if (monthlyVegetableExpense) {
@@ -197,7 +188,6 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     }
   };
 
-  // --- Función Limpiar Chat (Sin cambios) ---
   const clearChat = () => {
     setAiQuestion('');
     setAiResponse('');
@@ -205,8 +195,8 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
   };
 
   const isPlanButtonDisabled = !space || !experience || !location || !initialBudget || (method === 'hydroponics' && !light) || (method === 'organic' && !soilType) || loadingAiPlan;
-
-    // +++ COMIENZA EL BLOQUE A AGREGAR +++
+  
+  // Bloque para usuarios no autenticados
   if (status === 'unauthenticated') {
     return (
         <div className="text-center p-8">
@@ -218,15 +208,13 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
         </div>
     );
   }
-  // +++ TERMINA EL BLOQUE A AGREGAR +++
-  
+
   return (
     <div className="space-y-6 text-gray-300">
       <div className="bg-gray-700/50 p-4 rounded-lg text-center">
         <p className="text-gray-300">Basado en tus finanzas, este mes gastaste <span className="font-bold text-green-400">${userFinancialData?.supermarketSpending.toLocaleString('es-AR') || '...'}</span> en supermercado. ¡Vamos a reducir ese número!</p>
       </div>
       
-      {/* Navegación por pestañas (Tu código original) */}
       <div className="flex justify-center flex-wrap gap-2 md:space-x-4 mb-8">
         <TabButton isActive={activeTab === 'planificacion'} onClick={() => setActiveTab('planificacion')} icon={FaSeedling} label="Planificación" />
         <TabButton isActive={activeTab === 'control'} onClick={() => setActiveTab('control')} icon={FaTools} label="Control" />
@@ -235,10 +223,8 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
         <TabButton isActive={activeTab === 'ia-chat'} onClick={() => setActiveTab('ia-chat')} icon={FaRobot} label="Asistencia IA" />
       </div>
 
-      {/* Contenido de la pestaña (Tu código original) */}
       <div className="bg-gray-800 p-6 md:p-8 rounded-lg shadow-lg min-h-[500px]">
         {activeTab === 'planificacion' && (
-          // (El JSX de esta pestaña es idéntico a tu archivo original)
           <div className="space-y-8">
             <h3 className="text-3xl font-bold text-green-400 text-center mb-6">
               {method === 'hydroponics' ? 'Planificación Hidropónica con IA' : 'Planificación de Huerto Orgánico con IA'}
@@ -360,10 +346,10 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
               {loadingControlAdvice ? <FaMicrochip className="animate-spin mr-2" /> : <FaTools className="mr-2" />}
               Validar Parámetros
             </button>
-            {aiControlAdvice && validationResult && ( // CORRECCIÓN: Se comprueba que validationResult no sea null.
+            {validationResult && (
               <div className={`mt-6 p-4 rounded-lg flex items-center ${validationResult.isValid ? 'bg-green-800' : 'bg-red-800'}`}>
                 {validationResult.isValid ? <FaCheckCircle className="text-white text-xl mr-3" /> : <FaExclamationCircle className="text-white text-xl mr-3" />}
-                <p className="text-sm text-white">{aiControlAdvice}</p>
+                <p className="text-sm text-white">{validationResult.advice}</p>
               </div>
             )}
           </div>
@@ -424,7 +410,6 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
               {aiImageResponse && (
                 <div className="mt-4 mb-4 text-center">
                   <p className="text-gray-400 mb-2">Imagen de referencia generada por IA:</p>
-                  {/* CORRECCIÓN: Si tu app no usa 'next/image' puedes dejar img, pero es una buena práctica usarlo. */}
                   <img src={aiImageResponse} alt="Diseño de cultivo por IA" className="rounded-lg mx-auto border-4 border-gray-600 shadow-xl" />
                 </div>
               )}
@@ -434,12 +419,11 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
                   <p className="ml-2 text-green-400">Resi está pensando...</p>
                 </div>
               )}
-              {/* CORRECCIÓN: Se añade flex-wrap para que los botones se acomoden en pantallas chicas */}
-              <div className="flex space-x-2 flex-wrap gap-2">
-                <input type="text" className="flex-1 bg-gray-800 p-2 rounded-md" placeholder="Ej: ¿Qué hago si mi planta tiene plagas?" value={aiQuestion} onChange={(e) => setAiQuestion(e.target.value)} />
-                <button onClick={() => sendAiQuestion(false)} disabled={loadingAiChat || !aiQuestion.trim()} className="p-2 bg-green-500 rounded-md"><FaRobot /></button>
-                <button onClick={() => sendAiQuestion(true)} disabled={loadingAiChat || !aiQuestion.trim()} className="p-2 bg-blue-500 rounded-md"><FaImage /></button>
-                <button onClick={clearChat} className="p-2 bg-red-500 rounded-md"><FaTrashAlt /></button>
+              <div className="flex space-x-2">
+                <input type="text" className="flex-1 bg-gray-800 border border-gray-600 rounded-md shadow-sm p-2 text-white" placeholder="Ej: ¿Qué hago si mi planta tiene plagas?" value={aiQuestion} onChange={(e) => setAiQuestion(e.target.value)}/>
+                <button onClick={() => sendAiQuestion()} disabled={loadingAiChat || !aiQuestion.trim()} className="bg-green-500 text-white px-4 rounded-md hover:bg-green-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"><FaRobot /></button>
+                <button onClick={() => sendAiQuestion(true)} disabled={loadingAiChat || !aiQuestion.trim()} className="bg-blue-500 text-white px-4 rounded-md hover:bg-blue-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"><FaImage /></button>
+                <button onClick={clearChat} className="bg-red-500 text-white px-4 rounded-md hover:bg-red-600 transition-colors duration-200"><FaTrashAlt /></button>
               </div>
             </div>
           </div>

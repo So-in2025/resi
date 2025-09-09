@@ -1,9 +1,9 @@
+// En: frontend/src/components/AddExpenseForm.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useSession } from 'next-auth/react';
-import { FaMicrophone, FaStop, FaPaperPlane } from 'react-icons/fa';
 import apiClient from '@/lib/apiClient';
 
 interface AddExpenseFormProps {
@@ -37,18 +37,18 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
       // Pedimos acceso al micrófono del usuario
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      // Creamos una nueva instancia de MediaRecorder
+      // Creamos una nueva instancia de MediaRecorder. Por defecto, graba en formato webm.
       mediaRecorder.current = new MediaRecorder(stream);
       
-      // Cuando haya datos de audio disponibles, los guardamos
+      // Cuando haya datos de audio disponibles, los guardamos en nuestro array de chunks.
       mediaRecorder.current.ondataavailable = (event) => {
         audioChunks.current.push(event.data);
       };
       
-      // Cuando se detiene la grabación, llamamos a la función para enviar el audio
+      // Cuando se detiene la grabación, llamamos a la función para enviar el audio.
       mediaRecorder.current.onstop = handleSendAudio;
       
-      // Limpiamos chunks anteriores y empezamos a grabar
+      // Limpiamos chunks anteriores y empezamos a grabar.
       audioChunks.current = [];
       mediaRecorder.current.start();
       setIsRecording(true);
@@ -63,6 +63,8 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
   const stopRecording = () => {
     if (mediaRecorder.current && mediaRecorder.current.state === 'recording') {
       mediaRecorder.current.stop();
+      // Detenemos las pistas del stream para que el ícono de grabación del navegador desaparezca.
+      mediaRecorder.current.stream.getTracks().forEach(track => track.stop());
       setIsRecording(false);
       setFeedback('Procesando...');
     }
@@ -76,8 +78,8 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
     const toastId = toast.loading("Procesando audio...");
     setIsLoading(true);
 
-    // Creamos un único archivo de audio a partir de los fragmentos grabados
-    const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' }); // Formato compatible
+    // Creamos un único archivo de audio a partir de los fragmentos grabados.
+    const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
     const formData = new FormData();
     formData.append('audio_file', audioBlob, 'gasto.webm');
 
@@ -89,8 +91,10 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
         },
       });
       handleResponse(response.data);
+      toast.success("¡Gasto registrado!", { id: toastId });
     } catch (error) {
       handleError(error);
+      toast.error("No se pudo registrar el gasto.", { id: toastId });
     } finally {
       setIsLoading(false);
     }
@@ -99,6 +103,8 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
   const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (textInput.trim() === '' || !session?.user?.email) return;
+    
+    const toastId = toast.loading("Registrando gasto...");
     setIsLoading(true);
     setFeedback('Registrando gasto...');
     try {
@@ -107,8 +113,10 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
         { headers: { 'Authorization': `Bearer ${session.user.email}` } }
       );
       handleResponse(response.data);
+      toast.success("¡Gasto registrado!", { id: toastId });
     } catch (error) {
       handleError(error);
+      toast.error("No se pudo registrar el gasto.", { id: toastId });
     } finally {
       setIsLoading(false);
     }
@@ -131,7 +139,6 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
     console.error("Error en la petición:", error);
     const errorMsg = "Hubo un error al procesar la solicitud.";
     setFeedback(errorMsg);
-    toast.error(errorMsg);
   };
 
   return (
