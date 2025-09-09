@@ -6,6 +6,43 @@ import toast from 'react-hot-toast';
 import { useSession } from 'next-auth/react';
 import apiClient from '@/lib/apiClient';
 
+// --- Funciones auxiliares para crear un archivo WAV ---
+const writeString = (view: DataView, offset: number, string: string) => {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+};
+
+const floatTo16BitPCM = (output: DataView, offset: number, input: Float32Array) => {
+  for (let i = 0; i < input.length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, input[i]));
+    output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+};
+
+const encodeWAV = (samples: Float32Array, sampleRate: number): Blob => {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // Byte rate
+  view.setUint16(32, 2, true); // Block align
+  view.setUint16(34, 16, true); // Bits per sample
+  writeString(view, 36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+  floatTo16BitPCM(view, 44, samples);
+
+  return new Blob([view], { type: 'audio/wav' });
+};
+
+
 interface AddExpenseFormProps {
   onExpenseAdded: () => void;
   initialText?: string;
@@ -18,7 +55,6 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
   const [textInput, setTextInput] = useState('');
   const [feedback, setFeedback] = useState('');
 
-  // CORRECCIÓN: Se reemplaza mic-recorder-to-mp3 por useRefs para manejar la API nativa MediaRecorder.
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
 
@@ -28,71 +64,58 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
     }
   }, [initialText]);
 
-  // CORRECCIÓN: Nueva función para iniciar la grabación con MediaRecorder.
   const startRecording = async () => {
     if (!session) {
       setFeedback('Inicia sesión para grabar un gasto.');
       return;
     }
     try {
-      // Pedimos acceso al micrófono del usuario.
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // Creamos una nueva instancia de MediaRecorder. Por defecto, graba en formato webm.
       mediaRecorder.current = new MediaRecorder(stream);
-      
-      // Cuando haya datos de audio disponibles, los guardamos en nuestro array.
-      mediaRecorder.current.ondataavailable = (event) => {
-        audioChunks.current.push(event.data);
-      };
-      
-      // Cuando se detiene la grabación, llamamos a la función para enviar el audio.
-      mediaRecorder.current.onstop = handleSendAudio;
-      
-      // Limpiamos chunks de grabaciones anteriores y empezamos a grabar.
+      mediaRecorder.current.ondataavailable = (event) => audioChunks.current.push(event.data);
+      mediaRecorder.current.onstop = processAudio; // Llamamos a nuestra nueva función de procesamiento
       audioChunks.current = [];
       mediaRecorder.current.start();
       setIsRecording(true);
       setFeedback('Grabando... Presiona de nuevo para detener.');
-
     } catch (error) {
       console.error("Error al acceder al micrófono:", error);
       toast.error("No se pudo acceder al micrófono. Revisa los permisos en tu navegador.");
     }
   };
 
-  // CORRECCIÓN: Nueva función para detener la grabación.
   const stopRecording = () => {
-    if (mediaRecorder.current && mediaRecorder.current.state === 'recording') {
+    if (mediaRecorder.current?.state === 'recording') {
       mediaRecorder.current.stop();
-      // Detenemos las pistas del stream para que el ícono de grabación del navegador desaparezca.
       mediaRecorder.current.stream.getTracks().forEach(track => track.stop());
       setIsRecording(false);
-      setFeedback('Procesando...');
+      setFeedback('Procesando audio...');
     }
   };
 
-  // CORRECCIÓN: Nueva función que se ejecuta al detener la grabación.
-  const handleSendAudio = async () => {
-    if (!session?.user?.email) {
-      setFeedback("Error de sesión.");
-      return;
-    }
-    const toastId = toast.loading("Procesando audio...");
+  const processAudio = async () => {
+    const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
+
+    // Aquí ocurre la magia: convertimos el WEBM a WAV en el navegador
+    const audioContext = new AudioContext({ sampleRate: 44100 });
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    const wavBlob = encodeWAV(audioBuffer.getChannelData(0), audioBuffer.sampleRate);
+    
+    handleSendAudio(wavBlob);
+  };
+
+  const handleSendAudio = async (wavBlob: Blob) => {
+    if (!session?.user?.email) return;
+    const toastId = toast.loading("Enviando a Resi...");
     setIsLoading(true);
 
-    // Creamos un único archivo de audio a partir de los fragmentos grabados.
-    // El tipo es 'audio/webm', que es lo que nuestro backend ahora espera.
-    const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
     const formData = new FormData();
-    formData.append('audio_file', audioBlob, 'gasto.webm');
+    formData.append('audio_file', wavBlob, 'gasto.wav'); // Ahora enviamos un .wav
 
     try {
       const response = await apiClient.post('/transcribe', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${session.user.email}`
-        },
+        headers: { 'Content-Type': 'multipart/form-data', 'Authorization': `Bearer ${session.user.email}` },
       });
       handleResponse(response.data);
       toast.success("¡Gasto registrado!", { id: toastId });
@@ -105,45 +128,45 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
   };
   
   const handleTextSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (textInput.trim() === '' || !session?.user?.email) return;
-    
-    const toastId = toast.loading("Registrando gasto...");
-    setIsLoading(true);
-    setFeedback('Registrando gasto...');
-    try {
-      const response = await apiClient.post('/process-text', 
-        { text: textInput },
-        { headers: { 'Authorization': `Bearer ${session.user.email}` } }
-      );
-      handleResponse(response.data);
-      toast.success("¡Gasto registrado!", { id: toastId });
-    } catch (error) {
-      handleError(error);
-      toast.error("No se pudo registrar el gasto.", { id: toastId });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      e.preventDefault();
+      if (textInput.trim() === '' || !session?.user?.email) return;
+      
+      const toastId = toast.loading("Registrando gasto...");
+      setIsLoading(true);
+      setFeedback('Registrando gasto...');
+      try {
+        const response = await apiClient.post('/process-text', 
+          { text: textInput },
+          { headers: { 'Authorization': `Bearer ${session.user.email}` } }
+        );
+        handleResponse(response.data);
+        toast.success("¡Gasto registrado!", { id: toastId });
+      } catch (error) {
+        handleError(error);
+        toast.error("No se pudo registrar el gasto.", { id: toastId });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const handleResponse = (data: any) => {
-    if (data?.status?.includes("éxito")) {
-      const d = data.data;
-      setFeedback(`Registrado: $${d.amount} en ${d.category}`);
-      setTimeout(() => { onExpenseAdded(); }, 1500);
-    } else if (data?.data?.description) {
-      setFeedback(`Respuesta: ${data.data.description}`);
-      setTextInput('');
-    } else {
-      setFeedback('Respuesta inesperada del servidor.');
-    }
-  };
+    const handleResponse = (data: any) => {
+      if (data?.status?.includes("éxito")) {
+        const d = data.data;
+        setFeedback(`Registrado: $${d.amount} en ${d.category}`);
+        setTimeout(() => { onExpenseAdded(); }, 1500);
+      } else if (data?.data?.description) {
+        setFeedback(`Respuesta: ${data.data.description}`);
+        setTextInput(data.data.description);
+      } else {
+        setFeedback('Respuesta inesperada del servidor.');
+      }
+    };
 
-  const handleError = (error: any) => {
-    console.error("Error en la petición:", error);
-    const errorMsg = "Hubo un error al procesar la solicitud.";
-    setFeedback(errorMsg);
-  };
+    const handleError = (error: any) => {
+      console.error("Error en la petición:", error);
+      const errorMsg = "Hubo un error al procesar la solicitud.";
+      setFeedback(errorMsg);
+    };
 
   return (
     <div className="space-y-6">
@@ -187,4 +210,3 @@ export default function AddExpenseForm({ onExpenseAdded, initialText }: AddExpen
     </div>
   );
 }
-
