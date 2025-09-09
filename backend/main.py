@@ -2,6 +2,7 @@
 import os
 import io
 import textwrap
+import json
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import speech
@@ -10,13 +11,13 @@ from sqlalchemy.orm import Session
 from typing import List
 
 # --- Importaciones de nuestros nuevos módulos ---
-from database import create_db_and_tables, User, Expense, ChatMessage
+from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini
 from routers import finance, cultivation, family
 
 # --- Creación de la aplicación FastAPI ---
-app = FastAPI(title="Resi API", version="3.4.0")
+app = FastAPI(title="Resi API", version="3.5.0")
 
 create_db_and_tables()
 
@@ -51,11 +52,16 @@ system_prompt_chat = textwrap.dedent("""
     - "Módulo de Planificación Familiar": Una herramienta que genera planes de comidas, ahorro y ocio adaptados a la familia del usuario.
     - "Registro de Gastos": El usuario puede registrar gastos por voz o texto a través de un botón flotante.
 
+    Ahora tienes acceso a información más profunda del usuario. Úsala para dar consejos increíblemente personalizados:
+    - `risk_profile`: Perfil de riesgo del usuario (Conservador, Moderado, Audaz). Adapta tus sugerencias de ahorro e inversión a esto.
+    - `long_term_goals`: Metas a largo plazo del usuario (ej: "comprar una casa", "jubilarme a los 60"). Ayúdalo a alinear sus decisiones diarias con estas metas.
+    - `family_plan`: El último plan familiar que generó. Si pregunta sobre comidas o actividades, básate en este plan.
+
     Tus reglas:
     1.  Siempre relacioná tus respuestas con los temas centrales de Resi: ahorro, finanzas, presupuesto, cultivo, planificación y bienestar.
     2.  Si el usuario pregunta algo fuera de estos temas, redirige amablemente la conversación a tus temas centrales.
     3.  Sé conciso y andá al grano.
-    4.  Utilizá el contexto financiero y el historial de chat para personalizar tus respuestas.
+    4.  Utilizá el contexto financiero, el perfil del usuario y el historial de chat para personalizar tus respuestas y recordar conversaciones pasadas.
     5.  NUNCA uses formato Markdown (asteriscos, etc.). Responde siempre en texto plano.
     6.  MUY IMPORTANTE: Antes de sugerir cualquier herramienta o solución externa, SIEMPRE priorizá y recomendá las "Herramientas Internas de Resi" si son relevantes para la pregunta del usuario. Tu objetivo es que el usuario use y aproveche al máximo la propia aplicación.
 """)
@@ -68,7 +74,7 @@ model_chat = genai.GenerativeModel(
 # --- ENDPOINTS GLOBALES ---
 @app.get("/")
 def read_root():
-    return {"status": "ok", "version": "3.4.0"}
+    return {"status": "ok", "version": "3.5.0"}
 
 @app.post("/transcribe")
 async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
@@ -121,15 +127,27 @@ async def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: Use
     db.add(ChatMessage(user_email=user.email, sender="user", message=request.question))
     db.commit()
 
+    # --- Construcción de Contexto Avanzado para la IA ---
     summary_data = finance.get_dashboard_summary(db=db, user=user)
-    summary_text = f"Contexto financiero actual del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."
+    financial_context = f"Contexto financiero del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."
     
+    risk_profile = user.risk_profile or "no definido"
+    long_term_goals = user.long_term_goals or "no definidas"
+    profile_context = f"Perfil del usuario: Se define como '{risk_profile}' y su meta a largo plazo es '{long_term_goals}'."
+
+    plan_context = "Aún no ha generado un plan familiar."
+    latest_plan = db.query(FamilyPlan).filter(FamilyPlan.user_email == user.email).order_by(FamilyPlan.created_at.desc()).first()
+    if latest_plan:
+        plan_context = f"Información de su último plan familiar: {latest_plan.budget_suggestion}"
+
+    full_context = f"{financial_context}\n{profile_context}\n{plan_context}"
+
     chat_history_db = db.query(ChatMessage).filter(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.desc()).limit(10).all()
     chat_history_db.reverse()
 
     history_for_ia = [
-        {"role": "user", "parts": [summary_text]},
-        {"role": "model", "parts": ["¡Entendido! Tengo el resumen financiero del usuario. Estoy listo para ayudar."]}
+        {"role": "user", "parts": [full_context]},
+        {"role": "model", "parts": ["¡Entendido! Tengo el perfil completo y el contexto del usuario. Estoy listo para ayudar de forma hiper-personalizada."]}
     ]
     for msg in chat_history_db:
         role = "user" if msg.sender == "user" else "model"
@@ -156,5 +174,15 @@ def check_onboarding_status(db: Session = Depends(get_db), user: User = Depends(
 @app.post("/onboarding-complete")
 async def onboarding_complete(onboarding_data: OnboardingData, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     user.has_completed_onboarding = True
+    user.risk_profile = onboarding_data.risk_profile
+    user.long_term_goals = onboarding_data.long_term_goals
+    
+    income_item = db.query(BudgetItem).filter(BudgetItem.user_email == user.email, BudgetItem.category == "_income").first()
+    if income_item:
+        income_item.allocated_amount = onboarding_data.income
+    else:
+        db.add(BudgetItem(category="_income", allocated_amount=onboarding_data.income, user_email=user.email))
+    
     db.commit()
+    
     return {"status": "Información guardada con éxito"}

@@ -1,11 +1,11 @@
 # En: backend/database.py
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
+import json
 
-# --- CONFIGURACIÓN DE LA BASE DE DATOS ---
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL is None:
     DATABASE_URL = "sqlite:///./resi.db"
@@ -18,16 +18,20 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# --- MODELOS DE LA BASE DE DATOS ---
 class User(Base):
     __tablename__ = "users"
     email = Column(String, primary_key=True, index=True)
     has_completed_onboarding = Column(Boolean, default=False)
+    
+    # --- Nuevos campos para hiper-personalización ---
+    risk_profile = Column(String, nullable=True) # Ej: "Conservador", "Moderado", "Audaz"
+    long_term_goals = Column(Text, nullable=True) # Almacenará un JSON o texto con metas
+    
     expenses = relationship("Expense", back_populates="owner")
     budget_items = relationship("BudgetItem", back_populates="owner")
     saving_goals = relationship("SavingGoal", back_populates="owner")
-    # Nueva relación para el historial de chat
     chat_messages = relationship("ChatMessage", back_populates="owner")
+    family_plans = relationship("FamilyPlan", back_populates="owner") # Relación con planes familiares
 
 class Expense(Base):
     __tablename__ = "expenses"
@@ -57,16 +61,25 @@ class SavingGoal(Base):
     user_email = Column(String, ForeignKey("users.email"))
     owner = relationship("User", back_populates="saving_goals")
 
-# --- NUEVO MODELO PARA EL HISTORIAL DEL CHAT ---
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
     id = Column(Integer, primary_key=True, index=True)
-    sender = Column(String, nullable=False) # 'user' o 'ai'
+    sender = Column(String, nullable=False)
     message = Column(String, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
     user_email = Column(String, ForeignKey("users.email"))
     owner = relationship("User", back_populates="chat_messages")
 
+# --- NUEVO MODELO PARA GUARDAR PLANES FAMILIARES ---
+class FamilyPlan(Base):
+    __tablename__ = "family_plans"
+    id = Column(Integer, primary_key=True, index=True)
+    meal_plan_json = Column(Text, nullable=False) # Almacena el plan de comidas como un string JSON
+    budget_suggestion = Column(Text, nullable=False)
+    leisure_suggestion_json = Column(Text, nullable=False) # Almacena la sugerencia de ocio como un string JSON
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user_email = Column(String, ForeignKey("users.email"))
+    owner = relationship("User", back_populates="family_plans")
 
 def create_db_and_tables():
     Base.metadata.create_all(bind=engine)

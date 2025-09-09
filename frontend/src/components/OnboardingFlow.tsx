@@ -3,10 +3,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FaArrowLeft, FaArrowRight, FaChartPie, FaMicrophone, FaPlus, FaCheck, FaInfoCircle, FaRobot, FaGoogle, FaMap, FaLightbulb, FaDollarSign, FaUserTie, FaBirthdayCake, FaUsers } from 'react-icons/fa';
+import { FaArrowLeft, FaArrowRight, FaChartPie, FaMicrophone, FaPlus, FaCheck, FaInfoCircle, FaRobot, FaGoogle, FaMap, FaLightbulb, FaDollarSign, FaUserTie, FaBirthdayCake, FaUsers, FaShieldAlt, FaRocket, FaPiggyBank } from 'react-icons/fa';
 import { useSession, signIn } from 'next-auth/react';
 import toast from 'react-hot-toast';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 
 interface OnboardingFlowProps {
   onboardingCompleted: boolean;
@@ -16,21 +16,22 @@ interface OnboardingFlowProps {
 const OnboardingFlow = ({ onboardingCompleted, onboardingCompleteHandler }: OnboardingFlowProps) => {
   const { data: session, status } = useSession();
   const [step, setStep] = useState(1);
-  const totalSteps = 4;
+  const totalSteps = 5; // Total de 5 pasos ahora
+
+  // Estados para todos los datos del formulario
   const [income, setIncome] = useState<number | ''>('');
   const [occupation, setOccupation] = useState('');
   const [age, setAge] = useState<number | ''>('');
   const [familyGroup, setFamilyGroup] = useState<number | ''>(1);
+  const [riskProfile, setRiskProfile] = useState('');
+  const [longTermGoals, setLongTermGoals] = useState('');
 
   useEffect(() => {
-    // Si el usuario está autenticado y NO ha completado el onboarding, vamos directamente al paso 4
     if (status === 'authenticated' && !onboardingCompleted) {
-      setStep(4);
+      setStep(4); // Inicia en el primer paso de recolección de datos
     }
-    // Si el usuario ya completó el onboarding, nos aseguramos de que no se muestre el formulario
-    // Aquí puedes redirigir a un mensaje de éxito o al paso 1 del flujo informativo
     if (onboardingCompleted) {
-      setStep(1); // O el paso que quieras que sea la "landing page" después del onboarding
+      setStep(1);
     }
   }, [status, onboardingCompleted]);
 
@@ -39,23 +40,23 @@ const OnboardingFlow = ({ onboardingCompleted, onboardingCompleteHandler }: Onbo
 
   const handleStartWithData = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (income && occupation && age && familyGroup && session?.user?.email) {
+    if (income && occupation && age && familyGroup && riskProfile && longTermGoals && session?.user?.email) {
       const onboardingData = {
         income: income as number,
         occupation,
         age: age as number,
-        familyGroup: familyGroup as number
+        familyGroup: familyGroup as number,
+        risk_profile: riskProfile,
+        long_term_goals: longTermGoals,
       };
 
       const toastId = toast.loading("Guardando tu información y creando tu primer presupuesto...");
       try {
-        await axios.post('https://resi-vn4v.onrender.com/onboarding-complete', onboardingData, {
+        await apiClient.post('/onboarding-complete', onboardingData, {
           headers: { 'Authorization': `Bearer ${session.user.email}` },
         });
-
         toast.success("¡Información guardada con éxito!", { id: toastId });
         onboardingCompleteHandler();
-
       } catch (error) {
         console.error("Error al guardar la información del usuario:", error);
         toast.error("Error al guardar la información.", { id: toastId });
@@ -66,8 +67,6 @@ const OnboardingFlow = ({ onboardingCompleted, onboardingCompleteHandler }: Onbo
   };
 
   const renderStepContent = () => {
-    // Si el usuario no está autenticado, muestra los pasos de bienvenida y el botón de Google.
-    //if (status !== 'authenticated') {
       switch (step) {
         case 1:
           return (
@@ -150,134 +149,82 @@ const OnboardingFlow = ({ onboardingCompleted, onboardingCompleteHandler }: Onbo
             </div>
           );
         case 4:
-    // Si el onboarding ha sido completado, muestra un mensaje de éxito.
-    // Esto es crucial para que la página no se quede vacía.
-    if (onboardingCompleted) {
-      return (
-        <div className="text-center space-y-6">
-          <h3 className="text-2xl md:text-3xl font-bold text-green-400">¡Onboarding completado!</h3>
-          <p className="text-lg text-gray-300">
-            Tu ingreso ya está visible en el panel superior.
-          </p>
-          <p className="text-md text-gray-400">
-            Puedes ir al panel de control para ver el detalle de tu presupuesto.
-          </p>
-        </div>
-      );
-    } else if (status === 'authenticated' && !onboardingCompleted) {
-      return (
-        <div className="space-y-6 text-center">
-          <h3 className="text-3xl font-bold text-green-400">¡Hola, {session?.user?.name}!</h3>
-          <p className="text-lg text-gray-300">
-            Para generar un plan financiero personalizado, necesito algunos datos.
-          </p>
-          <form onSubmit={handleStartWithData} className="space-y-4">
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                <FaDollarSign />
-              </span>
-              <input
-                type="number"
-                placeholder="Ingreso mensual promedio"
-                value={income}
-                onChange={(e) => setIncome(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                className="w-full pl-10 pr-4 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
-              />
-            </div>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                <FaUserTie />
-              </span>
-              <input
-                type="text"
-                placeholder="Ocupación"
-                value={occupation}
-                onChange={(e) => setOccupation(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
-              />
-            </div>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                <FaBirthdayCake />
-              </span>
-              <input
-                type="number"
-                placeholder="Edad"
-                value={age}
-                onChange={(e) => setAge(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                className="w-full pl-10 pr-4 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
-              />
-            </div>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                <FaUsers />
-              </span>
-              <input
-                type="number"
-                placeholder="Miembros del grupo familiar"
-                value={familyGroup}
-                onChange={(e) => setFamilyGroup(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                className="w-full pl-10 pr-4 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full bg-green-500 text-white font-bold py-2 px-4 rounded-md hover:bg-green-600 transition-colors disabled:opacity-50"
-              disabled={!income || !occupation || !age || !familyGroup}
-            >
-              <FaCheck className="mr-2" />
-              Crear mi presupuesto
-            </button>
-          </form>
-        </div>
-      );
-    } {
-          return (
-            <div className="space-y-6 text-center">
-              <h3 className="text-3xl font-bold text-green-400">¡Listos para la Acción!</h3>
-              <p className="text-lg text-gray-300">
-                Para guardar tu progreso y recibir asistencia personalizada de Resi, debes iniciar sesión.
-              </p>
-              <div className="flex justify-center space-x-4 mt-6">
-                <button
-                  onClick={() => signIn('google')}
-                  className="px-6 py-2 bg-green-500 text-white font-semibold rounded-md flex items-center space-x-2 hover:bg-green-600 transition-colors"
-                >
-                  <FaGoogle />
-                  Iniciar sesión con Google
-                </button>
-              </div>
-            </div>
-          );
-        }
+            if (onboardingCompleted) {
+                return ( <div className="text-center space-y-6"><h3 className="text-2xl md:text-3xl font-bold text-green-400">¡Onboarding completado!</h3><p className="text-lg text-gray-300">Tu ingreso ya está visible en el panel superior.</p><p className="text-md text-gray-400">Puedes ir al panel de control para ver el detalle de tu presupuesto.</p></div> );
+            } else if (status === 'authenticated') {
+                return (
+                    <div className="space-y-6 text-center">
+                      <h3 className="text-3xl font-bold text-green-400">¡Hola, {session?.user?.name}!</h3>
+                      <p className="text-lg text-gray-300">Para generar un plan financiero personalizado, necesito algunos datos.</p>
+                      <form onSubmit={(e) => { e.preventDefault(); handleNext(); }} className="space-y-4">
+                         <div className="relative"><span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><FaDollarSign /></span><input type="number" placeholder="Ingreso mensual promedio" value={income} onChange={(e) => setIncome(e.target.value === '' ? '' : parseFloat(e.target.value))} className="w-full pl-10 pr-4 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500" required /></div>
+                         <div className="relative"><span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><FaUserTie /></span><input type="text" placeholder="Ocupación" value={occupation} onChange={(e) => setOccupation(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500" required /></div>
+                         <div className="relative"><span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><FaBirthdayCake /></span><input type="number" placeholder="Edad" value={age} onChange={(e) => setAge(e.target.value === '' ? '' : parseFloat(e.target.value))} className="w-full pl-10 pr-4 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500" required /></div>
+                         <div className="relative"><span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><FaUsers /></span><input type="number" placeholder="Miembros del grupo familiar" value={familyGroup} onChange={(e) => setFamilyGroup(e.target.value === '' ? '' : parseFloat(e.target.value))} className="w-full pl-10 pr-4 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500" required /></div>
+                      </form>
+                    </div>
+                );
+            } else {
+                return (
+                    <div className="space-y-6 text-center">
+                      <h3 className="text-3xl font-bold text-green-400">¡Listos para la Acción!</h3>
+                      <p className="text-lg text-gray-300">Para guardar tu progreso y recibir asistencia personalizada de Resi, debes iniciar sesión.</p>
+                      <div className="flex justify-center space-x-4 mt-6">
+                        <button onClick={() => signIn('google')} className="px-6 py-2 bg-green-500 text-white font-semibold rounded-md flex items-center space-x-2 hover:bg-green-600 transition-colors">
+                          <FaGoogle />
+                          Iniciar sesión con Google
+                        </button>
+                      </div>
+                    </div>
+                );
+            }
+        case 5:
+            return (
+                <div className="space-y-6 text-center">
+                  <h3 className="text-3xl font-bold text-green-400">Contame un poco más</h3>
+                  <p className="text-lg text-gray-300">Esta información nos ayudará a darte consejos mucho más precisos.</p>
+                  <form onSubmit={handleStartWithData} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-2">¿Cómo te considerás con tu plata?</label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <button type="button" onClick={() => setRiskProfile('Conservador')} className={`p-2 rounded-md border-2 ${riskProfile === 'Conservador' ? 'border-green-500 bg-green-900/50' : 'border-gray-600 hover:bg-gray-700'}`}><FaShieldAlt className="mx-auto mb-1"/>Conservador</button>
+                            <button type="button" onClick={() => setRiskProfile('Moderado')} className={`p-2 rounded-md border-2 ${riskProfile === 'Moderado' ? 'border-green-500 bg-green-900/50' : 'border-gray-600 hover:bg-gray-700'}`}><FaPiggyBank className="mx-auto mb-1"/>Moderado</button>
+                            <button type="button" onClick={() => setRiskProfile('Audaz')} className={`p-2 rounded-md border-2 ${riskProfile === 'Audaz' ? 'border-green-500 bg-green-900/50' : 'border-gray-600 hover:bg-gray-700'}`}><FaRocket className="mx-auto mb-1"/>Audaz</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label htmlFor="goals" className="block text-sm font-medium text-gray-400 mb-2">¿Cuál es tu principal meta financiera a largo plazo?</label>
+                        <input id="goals" type="text" placeholder="Ej: Comprar una casa, cambiar el auto, jubilarme..." value={longTermGoals} onChange={(e) => setLongTermGoals(e.target.value)} className="w-full px-4 py-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500" required />
+                    </div>
+                    <button type="submit" className="w-full bg-green-500 text-white font-bold py-2 px-4 rounded-md hover:bg-green-600 transition-colors disabled:opacity-50" disabled={!riskProfile || !longTermGoals}>
+                      <FaCheck className="mr-2 inline" />
+                      Crear mi presupuesto
+                    </button>
+                  </form>
+                </div>
+            );
         default:
           return null;
       }
-   // }
   };
 
   return (
     <div className="flex flex-col items-center">
-      <div className="w-full max-w-4xl p-6 bg-gray-800 rounded-lg shadow-xl mb-6 min-h-[400px] flex items-center justify-center">
+      <div className="w-full max-w-4xl p-6 bg-gray-800 rounded-lg shadow-xl mb-6 min-h-[450px] flex items-center justify-center">
         {renderStepContent()}
       </div>
-
       <div className="flex justify-between w-full max-w-4xl px-6">
         <button
           onClick={handleBack}
-          disabled={step === 1 || (status === 'authenticated' && !onboardingCompleted)}
+          disabled={step === 1 || (status === 'authenticated' && !onboardingCompleted && step === 4)}
           className="px-4 py-2 bg-gray-700 text-white rounded-md disabled:opacity-50 hover:bg-gray-600 transition-colors"
         >
           <FaArrowLeft />
         </button>
         <span className="text-gray-400">{`Paso ${step} de ${totalSteps}`}</span>
         <button
-          onClick={handleNext}
-          disabled={step === totalSteps || (status === 'authenticated' && !onboardingCompleted)}
+          onClick={step === totalSteps ? handleStartWithData : handleNext}
+          disabled={ (status !== 'authenticated' && step >= 4) || (step === 4 && (!income || !occupation || !age || !familyGroup))}
           className="px-4 py-2 bg-gray-700 text-white rounded-md disabled:opacity-50 hover:bg-gray-600 transition-colors"
         >
           <FaArrowRight />
@@ -288,3 +235,4 @@ const OnboardingFlow = ({ onboardingCompleted, onboardingCompleteHandler }: Onbo
 };
 
 export default OnboardingFlow;
+

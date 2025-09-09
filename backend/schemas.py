@@ -6,7 +6,16 @@ from datetime import datetime
 class TextInput(BaseModel): text: str
 class BudgetItemInput(BaseModel): category: str; allocated_amount: float; is_custom: bool
 class BudgetInput(BaseModel): income: float; items: List[BudgetItemInput]
-class OnboardingData(BaseModel): income: float; occupation: str; age: int; familyGroup: int
+
+# --- OnboardingData AMPLIADO ---
+class OnboardingData(BaseModel): 
+    income: float
+    occupation: str
+    age: int
+    familyGroup: int
+    risk_profile: str # Nuevo
+    long_term_goals: str # Nuevo
+
 class GoalInput(BaseModel): name: str; target_amount: float
 class CultivationPlanRequest(BaseModel):
     method: str; space: str; experience: str; light: Optional[str] = None
@@ -18,18 +27,40 @@ class ValidateParamsRequest(BaseModel):
     temp: Optional[float] = None; soilMoisture: Optional[float] = None
 class ResilienceSummary(BaseModel):
     title: str; message: str; suggestion: str; supermarket_spending: float
+
+# --- Schemas para Planificador Familiar AMPLIADO ---
 class FamilyMember(BaseModel): age: str; role: str
 class FamilyPlanRequest(BaseModel):
-    familyMembers: List[FamilyMember]; dietaryPreferences: List[str]
-    financialGoals: str; leisureActivities: List[str]
+    familyMembers: List[FamilyMember]
+    dietaryPreferences: List[str]
+    cookingStyle: str # Nuevo
+    leisureActivities: List[str]
+    financialGoals: str
+
+class MealPlanItem(BaseModel):
+    day: str
+    meal: str
+    tags: List[str]
+
+class LeisureSuggestion(BaseModel):
+    activity: str
+    cost: str
+    description: str
+
+class FamilyPlanResponse(BaseModel):
+    mealPlan: List[MealPlanItem]
+    budgetSuggestion: str
+    leisureSuggestion: LeisureSuggestion
+
+    class Config:
+        orm_mode = True
+
 class ExpenseData(BaseModel):
     amount: float; category: str; description: str
 
-# --- NUEVO SCHEMA PARA EL HISTORIAL DEL CHAT ---
 class ChatMessageResponse(BaseModel):
     sender: str
     message: str
     timestamp: datetime
-
     class Config:
         orm_mode = True
