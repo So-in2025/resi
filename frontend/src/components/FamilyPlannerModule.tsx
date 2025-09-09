@@ -97,7 +97,7 @@ export default function FamilyPlannerModule() {
     };
 
     try {
-      const response = await axios.post('https://resi-vn4v.onrender.com/family-plan/generate', planRequest, {
+      const response = await axios.post('https://resi-vn4v.onrender.com/family/family-plan/generate', planRequest, {
         headers: { 'Authorization': `Bearer ${session.user.email}` }
       });
       setAiPlan(response.data);

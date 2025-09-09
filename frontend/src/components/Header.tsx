@@ -46,7 +46,7 @@ export default function Header({ refreshTrigger }: HeaderProps) {
             return;
         }
         try {
-            const response = await apiClient.get('/dashboard-summary', {
+            const response = await apiClient.get('/finance/dashboard-summary', {
                 headers: { 'Authorization': `Bearer ${session.user.email}` }
             });
             const data: DashboardData = response.data;

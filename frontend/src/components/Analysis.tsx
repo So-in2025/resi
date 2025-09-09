@@ -24,8 +24,8 @@ export default function Analysis() {
         try {
           const axiosAuth = axios.create({ headers: { 'Authorization': `Bearer ${session.user?.email}` } });
           const [pieRes, barRes] = await Promise.all([
-            axiosAuth.get('https://resi-vn4v.onrender.com/analysis/monthly-distribution'),
-            axiosAuth.get('https://resi-vn4v.onrender.com/analysis/spending-trend')
+            axiosAuth.get('https://resi-vn4v.onrender.com/finance/analysis/monthly-distribution'),
+            axiosAuth.get('https://resi-vn4v.onrender.com/finance/analysis/spending-trend')
           ]);
           setPieData(pieRes.data);
           setBarData(barRes.data);

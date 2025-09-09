@@ -50,7 +50,7 @@ export default function SavingGoals({ goalsData, onGoalUpdate }: SavingGoalsProp
         const toastId = toast.loading("Creando meta...");
         try {
             // CORRECCIÓN: Se usa apiClient en lugar de axios con URL completa
-            await apiClient.post('/goals', 
+            await apiClient.post('/finance/goals', 
                 { name: newGoalName, target_amount: newGoalAmount },
                 { headers: { 'Authorization': `Bearer ${session.user.email}` } }
             );
@@ -70,7 +70,7 @@ export default function SavingGoals({ goalsData, onGoalUpdate }: SavingGoalsProp
         const toastId = toast.loading("Calculando proyección de Resi...");
         try {
             // CORRECCIÓN: Se usa apiClient en lugar de axios con URL completa
-            const response = await apiClient.get(`/goals/projection/${goal.id}`, {
+            const response = await apiClient.get(`/finance/goals/projection/${goal.id}`, {
                 headers: { 'Authorization': `Bearer ${session.user.email}` }
             });
             setProjection(response.data);

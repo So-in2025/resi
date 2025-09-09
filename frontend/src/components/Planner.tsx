@@ -128,7 +128,7 @@ export default function Planner({ budgetData, onBudgetUpdate }: PlannerProps) {
         }
         const toastId = toast.loading("Guardando planificación...");
         try {
-            await axios.post('https://resi-vn4v.onrender.com/budget',
+            await axios.post('https://resi-vn4v.onrender.com/finance/budget',
                 { income, items: budgetItems },
                 { headers: { 'Authorization': `Bearer ${session.user.email}` } }
             );

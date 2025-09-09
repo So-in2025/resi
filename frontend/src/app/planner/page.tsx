@@ -68,8 +68,8 @@ export default function PlannerPage() {
       setIsLoading(true);
       try {
         const [budgetResponse, dashboardResponse] = await Promise.all([
-          axios.get<BudgetResponse>('https://resi-vn4v.onrender.com/budget', { headers: { 'Authorization': `Bearer ${session.user.email}` } }),
-          axios.get<DashboardData>('https://resi-vn4v.onrender.com/dashboard-summary', { headers: { 'Authorization': `Bearer ${session.user.email}` } }),
+          axios.get<BudgetResponse>('https://resi-vn4v.onrender.com/finance/budget', { headers: { 'Authorization': `Bearer ${session.user.email}` } }),
+          axios.get<DashboardData>('https://resi-vn4v.onrender.com/finance/dashboard-summary', { headers: { 'Authorization': `Bearer ${session.user.email}` } }),
         ]);
         
         const savedData = budgetResponse.data;
@@ -139,7 +139,7 @@ export default function PlannerPage() {
 
         const toastId = toast.loading("Guardando planificacion...");
         try {
-            await axios.post('https://resi-vn4v.onrender.com/budget',
+            await axios.post('https://resi-vn4v.onrender.com/finance/budget',
                 { income, items: budgetItems },
                 { headers: { 'Authorization': `Bearer ${session.user?.email}` } }
             );

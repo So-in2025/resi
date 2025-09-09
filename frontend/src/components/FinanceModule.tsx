@@ -83,10 +83,10 @@ export default function FinanceModule({ onDataLoaded, isOpen }: FinanceModulePro
     try {
       const apiHeaders = { headers: { 'Authorization': `Bearer ${session.user.email}` } };
       const [summaryRes, budgetRes, expensesRes, goalsRes] = await Promise.all([
-        apiClient.get('/analysis/resilience-summary', apiHeaders),
-        apiClient.get('/budget', apiHeaders),
-        apiClient.get('/expenses', apiHeaders),
-        apiClient.get('/goals', apiHeaders),
+        apiClient.get('/finance/analysis/resilience-summary', apiHeaders),
+        apiClient.get('/finance/budget', apiHeaders),
+        apiClient.get('/finance/expenses', apiHeaders),
+        apiClient.get('/finance/goals', apiHeaders),
       ]);
       const allData: FinancialData = {
         resilienceSummary: summaryRes.data,
