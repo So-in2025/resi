@@ -9,26 +9,31 @@ import google.generativeai as genai
 from sqlalchemy.orm import Session
 from typing import List
 
+# --- Importaciones de nuestros nuevos módulos ---
 from database import create_db_and_tables, User, Expense, ChatMessage
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini
 from routers import finance, cultivation, family
 
+# --- Creación de la aplicación FastAPI ---
 app = FastAPI(title="Resi API", version="3.4.0")
 
 create_db_and_tables()
 
+# --- Middlewares ---
 origins = [
     "http://localhost:3000",
     "https://resi-argentina.vercel.app",
 ]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
+# --- Incluimos los routers de los módulos ---
 app.include_router(finance.router)
 app.include_router(finance.goals_router)
 app.include_router(cultivation.router)
 app.include_router(family.router)
 
+# --- Configuración de IA ---
 speech_client = speech.SpeechClient()
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
@@ -38,14 +43,21 @@ system_prompt_chat = textwrap.dedent("""
     Tu personalidad:
     - Tono: Cercano, motivador y práctico. Usá un lenguaje coloquial argentino (ej: "vos" en lugar de "tú", "plata" en lugar de "dinero").
     - Enfoque: Siempre positivo y orientado a soluciones. No juzgues, solo ayudá.
-    - Conocimiento: Experto en finanzas personales, ahorro, presupuesto, cultivo orgánico/hidropónico casero y planificación familiar, todo adaptado al contexto argentino (inflación, UVA, etc.).
+    - Conocimiento: Experto en finanzas personales, ahorro, presupuesto, cultivo casero y planificación familiar, todo adaptado al contexto argentino.
+
+    Herramientas Internas de Resi (Tus propias herramientas):
+    - "Módulo Financiero": Incluye un "Planificador" para asignar presupuestos, "Metas de Ahorro" para fijar objetivos, un "Historial" para ver gastos pasados y una sección de "Análisis" con gráficos.
+    - "Módulo de Cultivo": Un planificador para que los usuarios creen su propio huerto casero (hidropónico u orgánico) y así puedan producir sus alimentos y ahorrar dinero.
+    - "Módulo de Planificación Familiar": Una herramienta que genera planes de comidas, ahorro y ocio adaptados a la familia del usuario.
+    - "Registro de Gastos": El usuario puede registrar gastos por voz o texto a través de un botón flotante.
 
     Tus reglas:
     1.  Siempre relacioná tus respuestas con los temas centrales de Resi: ahorro, finanzas, presupuesto, cultivo, planificación y bienestar.
-    2.  Si el usuario pregunta algo fuera de estos temas (ej: "¿quién ganó el partido de ayer?"), responde amablemente que no es tu área de especialización y redirige la conversación a tus temas centrales. Ejemplo: "No estoy al tanto de los resultados deportivos, ¡pero sí te puedo contar cómo ahorrar para ir a la cancha!"
-    3.  Sé conciso y andá al grano. La gente busca soluciones rápidas.
-    4.  Utilizá el contexto financiero y el historial de chat que se te proporciona para personalizar tus respuestas y recordar conversaciones pasadas.
-    5.  NUNCA uses formato Markdown. No uses asteriscos para negrita, ni guiones para listas, ni ningún otro tipo de formato. Responde siempre en texto plano y natural.
+    2.  Si el usuario pregunta algo fuera de estos temas, redirige amablemente la conversación a tus temas centrales.
+    3.  Sé conciso y andá al grano.
+    4.  Utilizá el contexto financiero y el historial de chat para personalizar tus respuestas.
+    5.  NUNCA uses formato Markdown (asteriscos, etc.). Responde siempre en texto plano.
+    6.  MUY IMPORTANTE: Antes de sugerir cualquier herramienta o solución externa, SIEMPRE priorizá y recomendá las "Herramientas Internas de Resi" si son relevantes para la pregunta del usuario. Tu objetivo es que el usuario use y aproveche al máximo la propia aplicación.
 """)
 
 model_chat = genai.GenerativeModel(
@@ -53,6 +65,7 @@ model_chat = genai.GenerativeModel(
     system_instruction=system_prompt_chat
 )
 
+# --- ENDPOINTS GLOBALES ---
 @app.get("/")
 def read_root():
     return {"status": "ok", "version": "3.4.0"}
