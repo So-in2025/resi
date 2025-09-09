@@ -41,9 +41,12 @@ export default function HomePage() {
   const [sharedFinancialData, setSharedFinancialData] = useState<{ supermarketSpending: number } | null>(null);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
 
+ // ---- ESTADO DEL CHAT ACTUALIZADO ----
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { sender: 'ai', text: '¡Hola! Soy Resi. ¿En qué te puedo ayudar hoy?' }
+    { sender: 'ai', text: '¡Hola! Soy Resi. ¿En qué te puedo ayudar hoy?' },
+    // NUEVO MENSAJE INFORMATIVO
+    { sender: 'ai', text: 'Podés tocar mis mensajes para escucharlos en voz alta.', isInfo: true }
   ]);
 
   useEffect(() => {
