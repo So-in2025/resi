@@ -2,232 +2,123 @@
 Última Revisión de Arquitectura: 9 de Septiembre de 2025
 
 Índice del Documento:
-
-Objetivo General
-
-Arquitectura Técnica Detallada
-
-2.1. Backend (FastAPI)
-
-2.2. Frontend (Next.js & TypeScript)
-
-Flujo de Datos Crítico: Ejemplo de Registro de Gasto por Voz
-
-Esquema de la Base de Datos
-
-Roadmap de Módulos (Actuales y Futuros)
-
-Historial de Actualizaciones Recientes
-
 1. Objetivo General
-Crear un espacio digital gratuito, interactivo y visual, que empodere al usuario promedio argentino a mejorar su economía, producir alimentos sostenibles, ahorrar inteligentemente y planificar la vida familiar, integrando IA práctica, gamificación, comunidad y sorteos mensuales. Además, contará con un apartado premium y una sección para atraer inversores estratégicos.
-
 2. Arquitectura Técnica Detallada
-La plataforma está construida sobre una arquitectura desacoplada con un frontend moderno y un backend modular, preparada para escalar y evolucionar.
-
-2.1. Backend (FastAPI)
-La API está diseñada para ser robusta, escalable y fácil de mantener, separando claramente las responsabilidades.
-
-main.py: Orquestador Principal
-
-Función: Es el punto de entrada de la aplicación. Su única responsabilidad es inicializar el objeto FastAPI, configurar los middlewares (como CORS), incluir los routers de los diferentes módulos y definir los endpoints verdaderamente globales (ej. /, /chat, /transcribe).
-
-Filosofía: Mantener este archivo lo más limpio y simple posible. La lógica de negocio no reside aquí.
-
-database.py: Capa de Persistencia
-
-Función: Centraliza toda la configuración de la base de datos (conexión con SQLAlchemy, creación del motor). Define todos los modelos de las tablas (ej. User, Expense, SavingGoal) como clases de SQLAlchemy.
-
-Filosofía: Es la única fuente de verdad para la estructura de la base de datos. Cualquier cambio en las tablas se realiza aquí.
-
-schemas.py: Capa de Validación de Datos
-
-Función: Define todos los modelos Pydantic que se usan para la validación de datos en los endpoints. Asegura que los datos que entran a la API (requests) y los que salen (responses) tengan la forma y los tipos correctos.
-
-Filosofía: Actúa como un "contrato" de datos entre el frontend y el backend, previniendo errores y garantizando la consistencia.
-
-dependencies.py: Capa de Lógica Compartida
-
-Función: Contiene funciones reutilizables que se inyectan en los endpoints a través del sistema de dependencias de FastAPI. Ejemplos clave son get_db (gestiona la sesión de la base de datos), get_user_or_create (maneja la autenticación y creación de usuarios) y parse_expense_with_gemini (la lógica central de IA para analizar gastos).
-
-Filosofía: Evita la repetición de código y rompe las dependencias circulares, permitiendo que tanto el main.py como los routers accedan a lógica compleja sin importarse entre ellos.
-
-routers/: Módulos de Negocio
-
-Función: Esta carpeta contiene la lógica de negocio de cada módulo de la aplicación en archivos separados (finance.py, cultivation.py, family.py). Cada archivo define uno o más APIRouter que agrupan endpoints relacionados (ej. todos los endpoints de /finance están en finance.py).
-
-Filosofía: Es el corazón de la arquitectura modular. Para agregar un nuevo módulo (ej. Gamificación), simplemente se crea un nuevo archivo en esta carpeta y se incluye en main.py, sin necesidad de modificar el código existente.
-
-2.2. Frontend (Next.js & TypeScript)
-Construido con un enfoque en componentes reutilizables y un flujo de estado claro.
-
-src/app/page.tsx: Orquestador de la Interfaz
-
-Función: Es el componente principal de la aplicación. Gestiona el estado de la interfaz de usuario, como qué módulo está visible (qué acordeón está abierto), y pasa los datos compartidos entre los módulos (ej. el gasto en supermercado del módulo financiero se pasa al módulo de cultivo).
-
-Filosofía: Actúa como el "cerebro" de la UI, controlando la visibilidad y la comunicación entre los grandes componentes modulares.
-
-src/components/: Arsenal de Componentes
-
-Módulos (FinanceModule.tsx, CultivationModule.tsx, etc.): Son componentes grandes y complejos que encapsulan toda la lógica y la interfaz de una sección principal de la aplicación.
-
-Componentes de UI (Accordion.tsx, Modal.tsx, Sidebar.tsx): Elementos genéricos y reutilizables que sirven para construir la interfaz de manera consistente en toda la aplicación.
-
-Filosofía: Máxima reutilización y separación de responsabilidades.
-
-src/hooks/: Lógica Encapsulada
-
-Función: Contiene hooks personalizados de React que abstraen lógica compleja. El ejemplo clave es useResiVoice.ts, que encapsula toda la funcionalidad de reconocimiento de voz del navegador y la comunicación con el endpoint de chat de la IA.
-
-Filosofía: Mantener los componentes visuales limpios, extrayendo la lógica de estado compleja a estos hooks.
-
-src/lib/apiClient.ts: Conector Unificado
-
-Función: Un cliente de axios preconfigurado que centraliza todas las comunicaciones con el backend. Maneja la URL base de la API y podría ser expandido para gestionar la inyección automática de tokens de autenticación o el manejo de errores global.
-
-Filosofía: Un único punto de contacto con la API, facilitando el mantenimiento y la depuración.
-
-3. Flujo de Datos Crítico: Ejemplo de Registro de Gasto por Voz
-Para migrar a otra IA, es vital entender el flujo de datos. Este es el recorrido completo de una de las funciones más complejas:
-
-Activación (Frontend): El usuario hace clic en el botón + (FloatingActionButton) en page.tsx.
-
-Modal (Frontend): page.tsx abre el Modal.tsx, que renderiza AddExpenseForm.tsx.
-
-Grabación (Frontend): El usuario presiona el botón de grabar. AddExpenseForm.tsx utiliza la API nativa MediaRecorder del navegador para capturar el audio en formato .webm.
-
-Petición (Frontend): Al detener la grabación, AddExpenseForm.tsx empaqueta el audio en un Blob y utiliza el apiClient para enviarlo como FormData al endpoint /transcribe del backend.
-
-Recepción (Backend): main.py recibe la petición en el endpoint /transcribe.
-
-Transcripción (Backend): El audio .webm se procesa con pydub y se envía a Google Speech-to-Text para obtener la transcripción en texto plano.
-
-Análisis IA (Backend): El texto transcrito se pasa a la función parse_expense_with_gemini en dependencies.py.
-
-Procesamiento IA (Backend): Gemini, instruido por un prompt específico, analiza el texto, extrae {amount, category, description} y lo devuelve en formato JSON.
-
-Persistencia (Backend): La función guarda el nuevo gasto en la tabla Expense de la base de datos, definida en database.py.
-
-Respuesta (Backend): El endpoint devuelve una respuesta de éxito con los datos del gasto procesado.
-
-Feedback (Frontend): AddExpenseForm.tsx recibe la respuesta, muestra un toast de confirmación y llama a la función onExpenseAdded().
-
-Actualización (Frontend): page.tsx cierra el modal y actualiza su estado para forzar una recarga de datos en el FinanceModule, mostrando el nuevo gasto al instante.
-
-4. Esquema de la Base de Datos
-La base de datos SQLAlchemy se define en database.py con las siguientes tablas principales:
-
-users
-
-email (Clave Primaria, String)
-
-has_completed_onboarding (Boolean)
-
-expenses
-
-id (Clave Primaria, Integer)
-
-description (String)
-
-amount (Float)
-
-category (String)
-
-date (DateTime)
-
-user_email (Clave Foránea a users.email)
-
-budget_items
-
-id (Clave Primaria, Integer)
-
-category (String)
-
-allocated_amount (Float)
-
-is_custom (Boolean)
-
-user_email (Clave Foránea a users.email)
-
-saving_goals
-
-id (Clave Primaria, Integer)
-
-name (String)
-
-target_amount (Float)
-
-current_amount (Float)
-
-user_email (Clave Foránea a users.email)
-
+   2.1. Backend (FastAPI)
+   2.2. Frontend (Next.js & TypeScript)
+3. Flujo de Datos Crítico: Ejemplo de Chat con la IA
+4. Esquema de la Base de Datos (Final)
 5. Roadmap de Módulos (Actuales y Futuros)
-Módulo 1: Administrador de Gastos del Hogar con IA (✓ Completo y Estable)
+6. Historial de Actualizaciones Recientes
 
-Módulo 2: Hidroponía Inteligente + Cultivo Orgánico con IA (✓ Completo y Estable)
+---
 
-Módulo 3: Planificación Familiar con IA (✓ Base Funcional)
+### 1. Objetivo General
+Crear un espacio digital gratuito, interactivo y visual, que empodere al usuario promedio argentino a mejorar su economía, producir alimentos sostenibles, ahorrar inteligentemente y planificar la vida familiar, integrando IA práctica y personalizada, gamificación y comunidad.
 
-Módulo 4: Gamificación y Comunidad (Pendiente)
+---
 
-Concepto: Transformar la gestión financiera y de resiliencia en una experiencia motivadora y social.
+### 2. Arquitectura Técnica Detallada
+La plataforma está construida sobre una arquitectura desacoplada con un frontend moderno y un backend modular, preparada para escalar.
 
-Funcionalidades:
+#### 2.1. Backend (FastAPI)
+La API está diseñada para ser robusta, escalable y fácil de mantener.
 
-Sistema de Puntos y Logros: Los usuarios ganan "Puntos de Resiliencia" (PR) por registrar gastos, cumplir metas de ahorro, cosechar alimentos o participar en desafíos.
+* **main.py: Orquestador Principal**
+    * **Función:** Inicializa FastAPI, configura middlewares (CORS), incluye los routers de los módulos y define endpoints globales como `/chat` y `/onboarding-complete`.
+    * **Inteligencia Central:** Contiene el "prompt de sistema" que define la personalidad y las reglas de la IA de Resi. Reúne todo el contexto del usuario (financiero, perfil, historial) antes de cada llamada a la IA.
 
-Desafíos Comunitarios: Metas semanales para toda la comunidad (ej. "Ahorremos entre todos $1,000,000 esta semana").
+* **database.py: Definición de la Estructura de Datos**
+    * **Función:** Define el esquema de la base de datos usando SQLAlchemy ORM. Modela todas las tablas: `User`, `Expense`, `BudgetItem`, `SavingGoal`, `ChatMessage`, y `FamilyPlan`.
 
-Ranking de Resiliencia (Opcional): Tablas de clasificación anónimas por región o país.
+* **routers/: Lógica de Negocio Modular**
+    * **finance.py:** Maneja toda la lógica financiera: presupuestos, gastos, metas y análisis.
+    * **family.py:** Gestiona la creación y recuperación de planes familiares personalizados.
+    * **cultivation.py:** Contiene la lógica para los planes de cultivo.
 
-Foros de Consejos: Un espacio para que los usuarios compartan consejos sobre ahorro, cultivo y vida familiar.
+* **dependencies.py: Funciones Auxiliares**
+    * **Función:** Provee dependencias reutilizables, como la obtención del usuario actual (`get_user_or_create`) y el análisis de texto para gastos (`parse_expense_with_gemini`).
 
-IA Aplicada: La IA generará "misiones" personalizadas (ej. "Detecté que tu mayor gasto es en 'Delivery'. Desafío: intenta reducirlo en un 20% esta semana y gana 500 PR"). También podría moderar los foros y destacar las contribuciones más útiles.
+* **schemas.py: Validación de Datos**
+    * **Función:** Define los modelos de Pydantic que aseguran que los datos que entran y salen de la API tengan la estructura correcta.
 
-Módulo 5: Inversores y Alianzas (Pendiente)
+#### 2.2. Frontend (Next.js & TypeScript)
+La interfaz de usuario es una Single Page Application (SPA) construida para ser rápida, reactiva y adaptable a cualquier dispositivo.
 
-Concepto: Una sección pública y profesional para atraer capital y socios estratégicos.
+* **`src/app/page.tsx`:** Es el componente principal que renderiza la página de inicio y organiza todos los módulos dentro de acordeones. Gestiona el estado global de la interfaz, como qué módulo está abierto y la visibilidad del chat.
 
-Funcionalidades: Página estática dentro de la app (y en la web pública) que mostrará la misión del proyecto, el roadmap, métricas de crecimiento de usuarios (agregadas y anónimas), el impacto social medido y un formulario de contacto directo.
+* **`src/components/`: Componentes Reutilizables**
+    * **OnboardingFlow.tsx:** Guía a los nuevos usuarios a través de una serie de pasos para recolectar información esencial (ingresos, perfil de riesgo, metas), personalizando la experiencia desde el inicio.
+    * **FamilyPlannerModule.tsx:** Componente interactivo que permite a los usuarios definir las características de su familia y recibir un plan de comidas, ahorro y ocio generado por la IA. Guarda y recupera el último plan generado.
+    * **ChatWindow.tsx:** Interfaz del chat flotante que muestra la conversación y permite al usuario interactuar por texto o voz (usando el hook `useResiVoice`).
+    * **FinanceModule.tsx, CultivationModule.tsx, etc.:** Componentes dedicados que encapsulan la lógica y la UI de cada módulo principal.
 
-IA Aplicada: Se podría usar una IA para generar reportes de crecimiento y proyecciones de impacto de forma automática para presentar a los inversores.
+* **`src/hooks/useResiVoice.ts`:** Hook personalizado que encapsula la lógica del reconocimiento de voz del navegador (`SpeechRecognition`), convirtiendo la voz del usuario en texto para ser enviado al chat.
 
-Módulo 6: Mercado Resi (Pendiente)
+* **`src/lib/apiClient.ts`:** Una instancia configurada de Axios que centraliza todas las llamadas a la API del backend, manejando la inyección de la URL base desde las variables de entorno.
 
-Concepto: Un marketplace P2P (peer-to-peer) para la comunidad.
+---
 
-Funcionalidades: Los usuarios podrán ofrecer excedentes de sus cosechas, semillas, plantines o herramientas de segunda mano a otros usuarios de su zona. Sistema de reputación y chat interno para coordinar.
+### 3. Flujo de Datos Crítico: Ejemplo de Chat con la IA
 
-IA Aplicada: La IA podría sugerir precios justos de mercado basados en la oferta y la demanda local. También podría actuar como un mediador inicial en caso de disputas.
+1.  **Usuario (Frontend):** El usuario escribe o dicta una pregunta en el `ChatWindow.tsx`.
+2.  **Llamada a la API (Frontend):** El componente `page.tsx` llama al endpoint `POST /chat` del backend, enviando la pregunta.
+3.  **Recopilación de Contexto (Backend):** La función `ai_chat` en `main.py`:
+    a. Guarda la pregunta del usuario en la tabla `ChatMessage`.
+    b. Consulta la base de datos para obtener el resumen financiero, el perfil de riesgo, las metas a largo plazo y el último plan familiar del usuario.
+    c. Recupera los últimos 10 mensajes del historial de chat.
+    d. Ensambla toda esta información en un contexto consolidado.
+4.  **Consulta a la IA (Backend):** El contexto completo y la nueva pregunta se envían al modelo de IA (Google Gemini).
+5.  **Respuesta de la IA (Backend):** La IA genera una respuesta en texto plano, siguiendo las reglas de su prompt de sistema.
+6.  **Guardado y Envío (Backend):** El backend guarda la respuesta de la IA en la tabla `ChatMessage` y la envía de vuelta al frontend.
+7.  **Renderizado (Frontend):** El `ChatWindow.tsx` recibe la respuesta y la muestra como un nuevo mensaje de Resi.
 
-Módulo 7: Educación Financiera (Pendiente)
+---
 
-Concepto: Pequeños cursos y píldoras de conocimiento interactivos.
+### 4. Esquema de la Base de Datos (Final)
 
-Funcionalidades: Lecciones cortas sobre temas como "Salir del Veraz", "Primeros pasos para invertir en un FCI", "Entender un plazo fijo UVA", etc. Cada lección terminará con un pequeño quiz para ganar Puntos de Resiliencia.
+* **users**
+    * `email` (PK, String)
+    * `has_completed_onboarding` (Boolean)
+    * `risk_profile` (String, Nullable)
+    * `long_term_goals` (Text, Nullable)
 
-IA Aplicada: Un chatbot de IA especializado en finanzas argentinas que pueda responder preguntas específicas de los usuarios sobre los temas de las lecciones, actuando como un tutor personal.
+* **expenses**
+    * `id` (PK, Integer), `description` (String), `amount` (Float), `category` (String), `date` (DateTime), `user_email` (FK)
 
-Módulo 8: Energías Renovables (Pendiente)
+* **budget_items**
+    * `id` (PK, Integer), `category` (String), `allocated_amount` (Float), `is_custom` (Boolean), `user_email` (FK)
 
-Concepto: Una calculadora y planificador para la autosuficiencia energética.
+* **saving_goals**
+    * `id` (PK, Integer), `name` (String), `target_amount` (Float), `current_amount` (Float), `user_email` (FK)
 
-Funcionalidades: El usuario ingresa su consumo de luz (desde la factura de Edesur/Edenor) y las características de su techo (m², orientación).
+* **chat_messages**
+    * `id` (PK, Integer), `sender` (String), `message` (String), `timestamp` (DateTime), `user_email` (FK)
 
-IA Aplicada: La IA calculará la cantidad de paneles solares necesarios, el costo estimado de la instalación, el tiempo de amortización de la inversión y el ahorro mensual proyectado en la factura de luz.
+* **family_plans**
+    * `id` (PK, Integer), `meal_plan_json` (Text), `budget_suggestion` (Text), `leisure_suggestion_json` (Text), `created_at` (DateTime), `user_email` (FK)
 
-Módulo 9: Suscripción Premium (Pendiente)
+---
 
-Concepto: Ofrecer funcionalidades avanzadas por una pequeña suscripción mensual.
+### 5. Roadmap de Módulos
 
-Funcionalidades Premium:
+* **Módulo 1: Finanzas (✅ Implementado)**
+* **Módulo 2: Cultivo (✅ Implementado)**
+* **Módulo 3: Planificación Familiar (✅ Implementado y Mejorado)**
+* **Módulo 4: Chat con IA (✅ Implementado con Hiper-Personalización)**
+* **Módulo 5: Comunidad y Gamificación (Pendiente)**
+* **Módulo 6: Mercado Resiliente (Pendiente)**
+* **Módulo 7: Educación Financiera (Pendiente)**
+* **Módulo 8: Energías Renovables (Pendiente)**
+* **Módulo 9: Suscripción Premium (Pendiente)**
 
-Análisis predictivo de gastos con mayor precisión.
+---
 
-Integración con cuentas bancarias para la importación automática de gastos (si las APIs locales lo permiten).
+### 6. Historial de Actualizaciones Recientes
 
-Consultas ilimitadas con el tutor de IA de Educación Financiera.
-
-Participación en sorteos exclusivos de mayor valor.
-
-IA Aplicada: Los modelos de IA para usuarios premium tendrían acceso a más datos (historial más largo, datos bancarios) para ofrecer insights mucho más profundos y personalizados.
+* **Septiembre 2025 - "Hiper-Personalización" (Ruta 1):**
+    * Se amplió el flujo de Onboarding para incluir **Perfil de Riesgo** y **Metas a Largo Plazo**.
+    * Se expandió el **Planificador Familiar** con más opciones y se implementó el guardado y carga de planes.
+    * Se reestructuró la **base de datos** para almacenar esta nueva información contextual.
+    * Se actualizó el **cerebro de la IA (`main.py`)** para que utilice todo el contexto del usuario (finanzas, perfil, metas, plan familiar, historial de chat) antes de generar cada respuesta, logrando un nivel de personalización significativamente mayor.
+    * Se resolvieron múltiples errores de frontend, incluyendo el **`ERR_NETWORK`** por desincronización de la base de datos y se corrigieron problemas de CSS en el sidebar y módulos.
