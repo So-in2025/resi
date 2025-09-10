@@ -143,7 +143,11 @@ export default function FinanceModule({ onDataLoaded, isOpen }: FinanceModulePro
         <TabButton isActive={activeTab === 'historial'} onClick={() => setActiveTab('historial')} icon={FaHistory}>Historial</TabButton>
         <TabButton isActive={activeTab === 'analisis'} onClick={() => setActiveTab('analisis')} icon={FaChartLine}>Análisis</TabButton>
       </div>
-      <div className="mt-4 md:mt-6 p-2">
+      {/* SOLUCIÓN: Se agrega la clase `overflow-x-auto`.
+        Esto crea un contexto de scroll horizontal *dentro* de este div si su contenido (Planner, Analysis, etc.)
+        es más ancho que el espacio disponible, evitando que se rompa el layout general de la página.
+      */}
+      <div className="mt-4 md:mt-6 p-2 overflow-x-auto">
         {activeTab === 'planificador' && <Planner budgetData={financialData.budget} onBudgetUpdate={fetchAllData} />}
         {activeTab === 'metas' && <SavingGoals goalsData={financialData.goals || []} onGoalUpdate={fetchAllData} />}
         {activeTab === 'historial' && <History expensesData={financialData.expenses || []} onExpenseUpdate={fetchAllData} />}
