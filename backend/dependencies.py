@@ -1,21 +1,23 @@
 # En: backend/dependencies.py
 from fastapi import Depends, HTTPException, Header, status, Request
-from sqlalchemy.orm import Session
+# CORRECCIÓN: Importamos AsyncSession y select para consultas asíncronas
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 import json
 import textwrap
 import google.generativeai as genai
+from sqlalchemy.future import select # <-- NUEVO: Importa el select asíncrono
 
 # CORRECCIÓN: Las importaciones ahora son absolutas desde la raíz del 'backend'.
 from database import SessionLocal, User, BudgetItem
 from schemas import ExpenseData
 
-def get_db():
+async def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        await db.close() # CORRECCIÓN: Se usa 'await' para cerrar la sesión
 
 def get_current_user_email(request: Request, authorization: Optional[str] = Header(None)):
     if request.method == "OPTIONS": return None
@@ -23,22 +25,29 @@ def get_current_user_email(request: Request, authorization: Optional[str] = Head
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de autorización faltante o inválido.")
     return authorization.split(" ")[1]
 
-def get_user_or_create(user_email: str = Depends(get_current_user_email), db: Session = Depends(get_db)):
+# CORRECCIÓN: La función es asíncrona y usa la nueva sintaxis
+async def get_user_or_create(user_email: str = Depends(get_current_user_email), db: AsyncSession = Depends(get_db)):
     if user_email is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No se pudo verificar el email del usuario.")
-    user = db.query(User).filter(User.email == user_email).first()
+    
+    # CORRECCIÓN: Se reemplaza db.query por await db.execute(select(User)...)
+    result = await db.execute(select(User).where(User.email == user_email))
+    user = result.scalars().first()
+    
     if not user:
         new_user = User(email=user_email, has_completed_onboarding=False)
         db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
+        await db.commit()
+        await db.refresh(new_user)
         return new_user
     return user
 
 # --- FUNCIÓN ACTUALIZADA ---
-async def parse_expense_with_gemini(text: str, db: Session, user_email: str) -> Optional[dict]:
-    budget_items = db.query(BudgetItem.category).filter(BudgetItem.user_email == user_email, BudgetItem.category != "_income").all()
-    user_categories = [item[0] for item in budget_items]
+async def parse_expense_with_gemini(text: str, db: AsyncSession, user_email: str) -> Optional[dict]:
+    # CORRECCIÓN: Se reemplaza db.query por await db.execute(select(BudgetItem)...)
+    result = await db.execute(select(BudgetItem.category).filter(BudgetItem.user_email == user_email, BudgetItem.category != "_income"))
+    budget_items = result.scalars().all()
+    user_categories = [item for item in budget_items]
     valid_categories = list(set([
         "Vivienda", "Servicios Básicos", "Supermercado", "Kioscos", "Transporte", "Salud",
         "Deudas", "Préstamos", "Entretenimiento", "Hijos", "Mascotas", "Cuidado Personal",
@@ -75,7 +84,7 @@ async def parse_expense_with_gemini(text: str, db: Session, user_email: str) -> 
         expense_data = {
             "amount": parsed_json.get("amount"),
             "category": parsed_json.get("category"),
-            "description": text  # Usamos el texto original siempre
+            "description": text
         }
         
         # Validamos con Pydantic
