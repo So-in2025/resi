@@ -15,8 +15,6 @@ router = APIRouter(
     tags=["Gamification"]
 )
 
-# --- SCHEMAS DE RESPUESTA, ajustados para la base de datos real ---
-
 class AchievementSchema(BaseModel):
     id: str
     name: str
@@ -46,8 +44,6 @@ class GameProfileResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# --- ENDPOINTS REALES CON CONSULTAS A LA BASE DE DATOS ---
-
 @router.get("/", response_model=GameProfileResponse)
 async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -58,11 +54,11 @@ async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSe
         )
         .filter(User.email == user.email)
     )
-    # CORRECCIÓN: Se eliminó el await incorrecto.
+    # Se elimina el await incorrecto.
     user_with_data = result.scalars().first()
 
-    if not user_with_data.game_profile:
-        new_profile = GameProfile(user_email=user_with_data.email)
+    if not user_with_data or not user_with_data.game_profile:
+        new_profile = GameProfile(user_email=user.email)
         db.add(new_profile)
         await db.commit()
         await db.refresh(new_profile)
@@ -92,7 +88,7 @@ async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSe
 @router.post("/earn-coins")
 async def earn_coins(coins_to_add: int, user: User = Depends(get_user_or_create), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(GameProfile).filter(GameProfile.user_email == user.email))
-    # CORRECCIÓN: Se eliminó el await incorrecto.
+    # Se elimina el await incorrecto.
     profile = result.scalars().first()
     
     if profile:

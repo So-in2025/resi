@@ -19,12 +19,14 @@ from routers import finance, cultivation, family, market_data, gamification
 
 app = FastAPI(title="Resi API", version="4.0.0")
 
+# Se define la variable global, pero se inicializa de forma segura en el evento 'startup'
 speech_client = None
 
 @app.on_event("startup")
 async def startup_event():
     global speech_client
     await create_db_and_tables()
+    # Se inicializa el cliente aquí para no bloquear la importación del módulo
     speech_client = speech.SpeechClient()
 
 origins = [
@@ -100,6 +102,7 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
         )
         audio_source = speech.RecognitionAudio(content=wav_audio_content)
         
+        # Se ejecuta la llamada bloqueante en un hilo separado para no congelar el servidor
         response = await loop.run_in_executor(
             None, lambda: speech_client.recognize(config=config, audio=audio_source)
         )
@@ -146,25 +149,17 @@ async def get_chat_history(db: AsyncSession = Depends(get_db), user: User = Depe
 
 @app.post("/chat")
 async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
-    print("--- INICIANDO ENDPOINT /chat ---")
-    try:
-        print("[CHAT_DEBUG] 1. Agregando mensaje de usuario a la DB...")
-        db.add(ChatMessage(user_email=user.email, sender="user", message=request.question))
-        await db.commit()
-        print("[CHAT_DEBUG] 2. Mensaje de usuario guardado.")
+    db.add(ChatMessage(user_email=user.email, sender="user", message=request.question))
+    await db.commit()
 
-        print("[CHAT_DEBUG] 3. Obteniendo datos del dólar...")
+    try:
         dolar_data = await market_data.get_dolar_prices()
-        print("[CHAT_DEBUG] 4. Datos del dólar obtenidos.")
         real_time_context = f"CONTEXTO EN TIEMPO REAL: El Dólar Blue está a ${dolar_data['blue']['venta']} para la venta. El Dólar Oficial está a ${dolar_data['oficial']['venta']}."
     except Exception as e:
-        print(f"[CHAT_DEBUG] ERROR obteniendo datos del dólar: {e}")
+        print(f"ALERTA: No se pudo obtener datos del dólar. Causa: {e}")
         real_time_context = "CONTEXTO EN TIEMPO REAL: La cotización del dólar no está disponible en este momento."
 
-    print("[CHAT_DEBUG] 5. Obteniendo resumen financiero...")
     summary_data = await finance.get_dashboard_summary(db=db, user=user)
-    print("[CHAT_DEBUG] 6. Resumen financiero obtenido.")
-    
     financial_context = f"Contexto financiero del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."
     risk_profile = user.risk_profile or "no definido"
     long_term_goals = user.long_term_goals or "no definidas"
@@ -178,14 +173,12 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
     - Último plan familiar: {last_family_plan}
     - Último plan de cultivo: {last_cultivation_plan}
     """
+
     full_context = f"{real_time_context}\n{financial_context}\n{profile_context}"
 
-    print("[CHAT_DEBUG] 7. Obteniendo historial de chat...")
     result = await db.execute(select(ChatMessage).where(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.desc()).limit(10))
     chat_history_db = result.scalars().all()
     chat_history_db.reverse()
-    print("[CHAT_DEBUG] 8. Historial de chat obtenido.")
-    
     history_for_ia = [
         {"role": "user", "parts": [full_context]},
         {"role": "model", "parts": ["Entendido. Tengo el contexto económico y del usuario. Estoy listo para ayudar."]}
@@ -197,22 +190,40 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
     chat = model_chat.start_chat(history=history_for_ia)
     
     try:
-        print("[CHAT_DEBUG] 9. Enviando solicitud a la IA de Gemini...")
         loop = asyncio.get_event_loop()
         response_model = await loop.run_in_executor(
             None, lambda: chat.send_message(request.question)
         )
-        print("[CHAT_DEBUG] 10. Respuesta de la IA recibida.")
         ai_response_text = response_model.text
-
-        print("[CHAT_DEBUG] 11. Guardando respuesta de la IA en la DB...")
         db.add(ChatMessage(user_email=user.email, sender="ai", message=ai_response_text))
         await db.commit()
-        print("[CHAT_DEBUG] 12. Respuesta de la IA guardada.")
-
-        print("--- FIN ENDPOINT /chat ---")
         return {"response": ai_response_text}
     except Exception as e:
-        print(f"!!!!!!!! ERROR CRÍTICO EN EL BLOQUE DE LA IA !!!!!!!!")
-        print(f"Error al procesar la solicitud con la IA: {e}")
-        raise HTTPException(status_code=500, detail=f"Error al procesar la solicitud con la IA: {e}")
+        error_type = type(e).__name__
+        error_message = str(e)
+        print(f"!!!!!!!! ERROR EN LA CONEXIÓN CON GEMINI !!!!!!!!")
+        print(f"TIPO DE ERROR: {error_type}")
+        print(f"MENSAJE DE ERROR: {error_message}")
+        print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        raise HTTPException(status_code=500, detail=f"Error al conectar con la IA de Gemini: {error_type}")
+
+@app.get("/check-onboarding")
+async def check_onboarding_status(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
+    return {"onboarding_completed": user.has_completed_onboarding if user else False}
+
+@app.post("/onboarding-complete")
+async def onboarding_complete(onboarding_data: OnboardingData, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
+    user.has_completed_onboarding = True
+    user.risk_profile = onboarding_data.risk_profile
+    user.long_term_goals = onboarding_data.long_term_goals
+    
+    result = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email, BudgetItem.category == "_income"))
+    income_item = result.scalars().first()
+    if income_item:
+        income_item.allocated_amount = onboarding_data.income
+    else:
+        db.add(BudgetItem(category="_income", allocated_amount=onboarding_data.income, user_email=user.email))
+    
+    await db.commit()
+    
+    return {"status": "Información guardada con éxito"}
