@@ -19,9 +19,13 @@ from routers import finance, cultivation, family, market_data, gamification
 
 app = FastAPI(title="Resi API", version="4.0.0")
 
+speech_client = None
+
 @app.on_event("startup")
 async def startup_event():
+    global speech_client
     await create_db_and_tables()
+    speech_client = speech.SpeechClient()
 
 origins = [
     "http://localhost:3000",
@@ -36,7 +40,6 @@ app.include_router(family.router)
 app.include_router(market_data.router)
 app.include_router(gamification.router)
 
-speech_client = speech.SpeechClient()
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 system_prompt_chat = textwrap.dedent("""
     Eres "Resi", un asistente de IA amigable, empático y experto en resiliencia económica y alimentaria para usuarios en Argentina. Tu propósito es empoderar a las personas para que tomen el control de sus finanzas y bienestar.
@@ -97,7 +100,6 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
         )
         audio_source = speech.RecognitionAudio(content=wav_audio_content)
         
-        # CORRECCIÓN DEFINITIVA: Ejecutar la llamada bloqueante en un hilo separado
         response = await loop.run_in_executor(
             None, lambda: speech_client.recognize(config=config, audio=audio_source)
         )
@@ -185,7 +187,12 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
     chat = model_chat.start_chat(history=history_for_ia)
     
     try:
-        response_model = await chat.send_message_async(request.question)
+        # CORRECCIÓN DEFINITIVA: Se aísla la llamada a la IA en un hilo separado para evitar que bloquee la aplicación.
+        loop = asyncio.get_event_loop()
+        # Se usa la versión síncrona 'send_message' dentro del executor.
+        response_model = await loop.run_in_executor(
+            None, lambda: chat.send_message(request.question)
+        )
         ai_response_text = response_model.text
         db.add(ChatMessage(user_email=user.email, sender="ai", message=ai_response_text))
         await db.commit()
