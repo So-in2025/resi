@@ -7,5 +7,5 @@ soundfile
 google-cloud-speech
 google-generativeai
 httpx
-aiosqlite 
+aiosqlite
 asyncpg

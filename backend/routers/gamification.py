@@ -54,10 +54,11 @@ async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSe
         )
         .filter(User.email == user.email)
     )
-    # Se elimina el await incorrecto.
+    # CORRECCIÓN DEFINITIVA: Se eliminó el await incorrecto que causaba el error.
     user_with_data = result.scalars().first()
 
     if not user_with_data or not user_with_data.game_profile:
+        # Si el usuario es nuevo y no tiene perfil, se crea uno.
         new_profile = GameProfile(user_email=user.email)
         db.add(new_profile)
         await db.commit()
@@ -88,7 +89,7 @@ async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSe
 @router.post("/earn-coins")
 async def earn_coins(coins_to_add: int, user: User = Depends(get_user_or_create), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(GameProfile).filter(GameProfile.user_email == user.email))
-    # Se elimina el await incorrecto.
+    # CORRECCIÓN DEFINITIVA: Se eliminó el await incorrecto.
     profile = result.scalars().first()
     
     if profile:
