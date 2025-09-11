@@ -1,5 +1,3 @@
-# En: backend/requirements.txt
-
 fastapi
 uvicorn[standard]
 SQLAlchemy
@@ -8,12 +6,7 @@ python-multipart
 soundfile
 google-cloud-speech
 psycopg2-binary
-google-generativeai # <-- Agregada para la integración del LLM
+google-generativeai
 httpx
-aiosqlite # <-- AÑADIDO
-# CORRECCIÓN: Añadimos el driver asíncrono para PostgreSQL
+aiosqlite 
 asyncpg
-
-# CORRECCIÓN FINAL: Usamos el modelo PEQUEÑO (sm), el más liviano de todos,
-# para asegurar que la app arranque sin problemas en el plan gratuito de Render.
-https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.7.0/es_core_news_sm-3.7.0.tar.gz

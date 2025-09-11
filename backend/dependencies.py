@@ -1,207 +1,136 @@
-# En: backend/main.py
-import os
-import io
-import textwrap
-import json
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from google.cloud import speech
-import google.generativeai as genai
+# En: backend/dependencies.py
+from fastapi import Depends, HTTPException, Header, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional, List
+import json
+import textwrap
+import google.generativeai as genai
 from sqlalchemy.future import select
-from typing import List
+from sqlalchemy import func
+from datetime import datetime
 
-from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement, CultivationPlan
-from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
-from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement
-from routers import finance, cultivation, family, market_data, gamification
+from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
+from schemas import ExpenseData, GoalInput, BudgetInput
 
-app = FastAPI(title="Resi API", version="4.0.0")
-
-@app.on_event("startup")
-async def startup_event():
-    await create_db_and_tables()
-
-origins = [
-    "http://localhost:3000",
-    "https://resi-argentina.vercel.app",
-]
-app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-
-app.include_router(finance.router)
-app.include_router(finance.goals_router)
-app.include_router(cultivation.router)
-app.include_router(family.router)
-app.include_router(market_data.router)
-app.include_router(gamification.router)
-
-speech_client = speech.SpeechClient()
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-system_prompt_chat = textwrap.dedent("""
-    Eres "Resi", un asistente de IA amigable, empático y experto en resiliencia económica y alimentaria para usuarios en Argentina. Tu propósito es empoderar a las personas para que tomen el control de sus finanzas y bienestar.
-
-    Tu personalidad:
-    - Tono: Cercano, motivador y práctico. Usá un lenguaje coloquial argentino (ej: "vos" en lugar de "tú", "plata" en lugar de "dinero").
-    - Enfoque: Siempre positivo y orientado a soluciones. No juzgues, solo ayudá.
-    - Conocimiento: Experto en finanzas personales, ahorro, presupuesto, cultivo casero y planificación familiar, todo adaptado al contexto argentino.
-
-    Herramientas Internas de Resi (Tus propias herramientas):
-    - "Módulo Financiero": Incluye un "Planificador" para asignar presupuestos, "Metas de Ahorro" para fijar objetivos, un "Historial" para ver gastos pasados y una sección de "Análisis" con gráficos.
-    - "Módulo de Cultivo": Un planificador para que los usuarios creen su propio huerto casero (hidropónico u orgánico) y así puedan producir sus alimentos y ahorrar dinero.
-    - "Módulo de Planificación Familiar": Una herramienta que genera planes de comidas, ahorro y ocio adaptados a la familia del usuario.
-    - "Registro de Gastos": El usuario puede registrar gastos por voz o texto a través de un botón flotante.
-
-    Ahora tienes acceso a información más profunda del usuario. Úsala para dar consejos increíblemente personalizados:
-    - `risk_profile`: Perfil de riesgo del usuario (Conservador, Moderado, Audaz). Adapta tus sugerencias de ahorro e inversión a esto.
-    - `long_term_goals`: Metas a largo plazo del usuario (ej: "comprar una casa", "jubilarme a los 60"). Ayúdalo a alinear sus decisiones diarias con estas metas.
-    - `last_family_plan`: El último plan familiar que generó. Si pregunta sobre comidas o actividades, básate en este plan.
-    - `last_cultivation_plan`: El último plan de cultivo que generó. Si pregunta sobre su huerta, utiliza este plan como base.
-
-    NUEVA CAPACIDAD: CONTEXTO EN TIEMPO REAL
-    Al inicio de cada conversación, recibirás un bloque de "CONTEXTO EN TIEMPO REAL" con datos económicos actuales. DEBES usar esta información para que tus consejos sean precisos y valiosos.
-    Ejemplo de cómo usar el contexto:
-    - Si el usuario pregunta si le conviene comprar dólares, tu respuesta DEBE basarse en la cotización del Dólar Blue que te fue proporcionada.
-    - Si un usuario quiere invertir, DEBES mencionar la tasa de plazo fijo actual (próximamente) y compararla con la inflación (próximamente) para evaluar si es una buena opción.
-    - NO inventes datos. Si no tienes un dato específico (ej. inflación del mes), acláralo.
-
-    Tus reglas:
-    1.  Integra siempre el contexto del usuario y el contexto en tiempo real en tus respuestas.
-    2.  Si el usuario pregunta algo fuera de tus temas, redirige amablemente la conversación a tus temas centrales.
-    3.  Sé conciso y andá al grano.
-    4.  Utilizá el historial de chat para recordar conversaciones pasadas.
-    5.  NUNCA uses formato Markdown (asteriscos, etc.). Responde siempre en texto plano.
-    6.  MUY IMPORTANTE: Antes de sugerir cualquier herramienta o solución externa, SIEMPRE priorizá y recomendá las "Herramientas Internas de Resi".
-""")
-
-model_chat = genai.GenerativeModel(
-    model_name="gemini-1.5-flash-latest",
-    system_instruction=system_prompt_chat
-)
-
-@app.get("/")
-def read_root():
-    return {"status": "ok", "version": "4.0.0"}
-
-@app.post("/transcribe")
-async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
+async def get_db():
+    db = SessionLocal()
     try:
-        wav_audio_content = await audio_file.read()
-        config = speech.RecognitionConfig(
-            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-            sample_rate_hertz=44100,
-            language_code="es-AR",
-            audio_channel_count=1
-        )
-        audio_source = speech.RecognitionAudio(content=wav_audio_content)
-        response = speech_client.recognize(config=config, audio=audio_source)
-        transcripts = [result.alternatives[0].transcript for result in response.results]
-        if not transcripts:
-            raise HTTPException(status_code=400, detail="No se pudo entender el audio.")
-        full_transcript = " ".join(transcripts)
-        parsed_data = await parse_expense_with_gemini(full_transcript, db, user.email)
-        if parsed_data:
-            new_expense = Expense(user_email=user.email, **parsed_data)
-            db.add(new_expense)
+        yield db
+    finally:
+        await db.close()
+
+def get_current_user_email(request: Request, authorization: Optional[str] = Header(None)):
+    if request.method == "OPTIONS": return None
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de autorización faltante o inválido.")
+    return authorization.split(" ")[1]
+
+async def get_user_or_create(user_email: str = Depends(get_current_user_email), db: AsyncSession = Depends(get_db)):
+    if user_email is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No se pudo verificar el email del usuario.")
+    
+    result = await db.execute(select(User).where(User.email == user_email))
+    user = (await result.scalars().first())
+    
+    if not user:
+        new_user = User(email=user_email, has_completed_onboarding=False)
+        db.add(new_user)
+        new_profile = GameProfile(user_email=user_email)
+        db.add(new_profile)
+        await db.commit()
+        await db.refresh(new_user)
+        return new_user
+    return user
+
+async def award_achievement(user: User, achievement_id: str, db: AsyncSession, progress_to_add: int = 1):
+    result = await db.execute(select(Achievement).where(Achievement.id == achievement_id))
+    achievement = (await result.scalars().first())
+    if not achievement:
+        print(f"Advertencia: Logro '{achievement_id}' no encontrado en la base de datos.")
+        return None
+
+    result_user_achiev = await db.execute(
+        select(UserAchievement)
+        .filter(UserAchievement.user_email == user.email, UserAchievement.achievement_id == achievement_id)
+    )
+    user_achiev = (await result_user_achiev.scalars().first())
+
+    if not user_achiev:
+        user_achiev = UserAchievement(user_email=user.email, achievement_id=achievement_id)
+        db.add(user_achiev)
+        await db.flush()
+
+    if not user_achiev.is_completed:
+        user_achiev.progress += progress_to_add
+        
+        result_profile = await db.execute(select(GameProfile).filter(GameProfile.user_email == user.email))
+        profile = (await result_profile.scalars().first())
+
+        if user_achiev.progress >= achievement.points:
+            user_achiev.is_completed = True
+            user_achiev.completion_date = datetime.utcnow()
+            
+            if profile:
+                if achievement.type == "finance":
+                    profile.financial_points += achievement.points
+                elif achievement.type == "cultivation":
+                    profile.cultivation_points += achievement.points
+                elif achievement.type == "community":
+                    profile.community_points += achievement.points
+                profile.resi_score += achievement.points * 2
+                profile.resilient_coins += achievement.points * 5
+
             await db.commit()
-            await db.refresh(new_expense)
-            await award_achievement(user, "first_expense", db)
-            return {"status": "Gasto registrado con éxito", "data": parsed_data}
-        else:
-            return {"status": "No se pudo categorizar el gasto", "data": {"description": full_transcript}}
-    except Exception as e:
-        print(f"Error detallado en la transcripción: {e}")
-        raise HTTPException(status_code=400, detail=f"Error en la transcripción: No se pudo procesar el audio.")
-
-@app.post("/process-text")
-async def process_text(input_data: TextInput, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
-    parsed_data = await parse_expense_with_gemini(input_data.text, db, user.email)
-    if parsed_data:
-        new_expense = Expense(user_email=user.email, **parsed_data)
-        db.add(new_expense)
-        await db.commit()
-        await db.refresh(new_expense)
-        await award_achievement(user, "first_expense", db)
-        return {"status": "Gasto registrado con éxito", "data": parsed_data}
-    else:
-        return {"status": "No se pudo categorizar el gasto", "data": {"description": input_data.text}}
-
-@app.get("/chat/history", response_model=List[ChatMessageResponse])
-async def get_chat_history(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
-    result = await db.execute(select(ChatMessage).where(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.asc()))
-    # CORRECCIÓN: .all() debe ser esperado (awaited)
-    history = await result.scalars().all()
-    return history
-
-@app.post("/chat")
-async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
-    db.add(ChatMessage(user_email=user.email, sender="user", message=request.question))
-    await db.commit()
-
-    try:
-        dolar_data = await market_data.get_dolar_prices()
-        real_time_context = f"CONTEXTO EN TIEMPO REAL: El Dólar Blue está a ${dolar_data['blue']['venta']} para la venta. El Dólar Oficial está a ${dolar_data['oficial']['venta']}."
-    except Exception as e:
-        print(f"ALERTA: No se pudo obtener datos del dólar. Causa: {e}")
-        real_time_context = "CONTEXTO EN TIEMPO REAL: La cotización del dólar no está disponible en este momento."
-
-    summary_data = await finance.get_dashboard_summary(db=db, user=user)
-    financial_context = f"Contexto financiero del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."
-    risk_profile = user.risk_profile or "no definido"
-    long_term_goals = user.long_term_goals or "no definidas"
-    last_family_plan = user.last_family_plan or "no se ha generado un plan familiar"
-    last_cultivation_plan = user.last_cultivation_plan or "no se ha generado un plan de cultivo"
-
-    profile_context = f"""
-    Perfil del usuario:
-    - Perfil de riesgo: '{risk_profile}'
-    - Metas a largo plazo: '{long_term_goals}'
-    - Último plan familiar: {last_family_plan}
-    - Último plan de cultivo: {last_cultivation_plan}
-    """
-
-    full_context = f"{real_time_context}\n{financial_context}\n{profile_context}"
-
-    result = await db.execute(select(ChatMessage).where(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.desc()).limit(10))
-    # CORRECCIÓN: .all() debe ser esperado (awaited)
-    chat_history_db = await result.scalars().all()
-    chat_history_db.reverse()
-    history_for_ia = [
-        {"role": "user", "parts": [full_context]},
-        {"role": "model", "parts": ["Entendido. Tengo el contexto económico y del usuario. Estoy listo para ayudar."]}
-    ]
-    for msg in chat_history_db:
-        role = "user" if msg.sender == "user" else "model"
-        history_for_ia.append({"role": role, "parts": [msg.message]})
-
-    chat = model_chat.start_chat(history=history_for_ia)
-    
-    try:
-        response_model = await chat.send_message_async(request.question)
-        ai_response_text = response_model.text
-        db.add(ChatMessage(user_email=user.email, sender="ai", message=ai_response_text))
-        await db.commit()
-        return {"response": ai_response_text}
-    except Exception as e:
-        print(f"Error al procesar la solicitud con la IA: {e}")
-        raise HTTPException(status_code=500, detail=f"Error al procesar la solicitud con la IA: {e}")
-
-@app.get("/check-onboarding")
-async def check_onboarding_status(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
-    return {"onboarding_completed": user.has_completed_onboarding if user else False}
-
-@app.post("/onboarding-complete")
-async def onboarding_complete(onboarding_data: OnboardingData, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
-    user.has_completed_onboarding = True
-    user.risk_profile = onboarding_data.risk_profile
-    user.long_term_goals = onboarding_data.long_term_goals
-    
-    result = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email, BudgetItem.category == "_income"))
-    income_item = await result.scalars().first()
-    if income_item:
-        income_item.allocated_amount = onboarding_data.income
-    else:
-        db.add(BudgetItem(category="_income", allocated_amount=onboarding_data.income, user_email=user.email))
+            return f"¡Logro desbloqueado: '{achievement.name}'!"
     
     await db.commit()
+    return None
+
+async def parse_expense_with_gemini(text: str, db: AsyncSession, user_email: str) -> Optional[dict]:
+    result = await db.execute(select(BudgetItem.category).filter(BudgetItem.user_email == user_email, BudgetItem.category != "_income"))
+    budget_items = (await result.scalars().all())
+    user_categories = [item for item in budget_items]
+    valid_categories = list(set([
+        "Vivienda", "Servicios Básicos", "Supermercado", "Kioscos", "Transporte", "Salud",
+        "Deudas", "Préstamos", "Entretenimiento", "Hijos", "Mascotas", "Cuidado Personal",
+        "Vestimenta", "Ahorro", "Inversión", "Otros"
+    ] + user_categories))
+
+    system_prompt_expense = textwrap.dedent(f"""
+        Tu única tarea es analizar una frase de un usuario en Argentina sobre un gasto y devolver un objeto JSON con dos claves: "amount" y "category".
+        
+        - El "amount" debe ser un número (float o int), sin símbolos de moneda.
+        - La "category" DEBE ser una de esta lista: {valid_categories}. No inventes categorías. Si no estás seguro, usa "Otros".
+        - NO incluyas la clave "description" en tu respuesta JSON.
+        - Responde únicamente con el JSON y nada más.
+
+        Ejemplo de respuesta perfecta:
+        {{
+          "amount": 5000,
+          "category": "Supermercado"
+        }}
+    """)
+
+    model_expense = genai.GenerativeModel(
+        model_name="gemini-1.5-flash-latest",
+        system_instruction=system_prompt_expense,
+        generation_config={"response_mime_type": "application/json"}
+    )
     
-    return {"status": "Información guardada con éxito"}
+    try:
+        response = await model_expense.generate_content_async(f"Analiza esta frase: '{text}'")
+        parsed_json = json.loads(response.text)
+
+        expense_data = {
+            "amount": parsed_json.get("amount"),
+            "category": parsed_json.get("category"),
+            "description": text
+        }
+        
+        validated_data = ExpenseData(**expense_data)
+        
+        return validated_data.dict()
+        
+    except Exception as e:
+        print(f"Error al procesar con Gemini o validar los datos: {e}")
+        return None
