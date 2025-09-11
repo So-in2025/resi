@@ -5,7 +5,6 @@ pydantic
 python-multipart
 soundfile
 google-cloud-speech
-psycopg2-binary
 google-generativeai
 httpx
 aiosqlite 
