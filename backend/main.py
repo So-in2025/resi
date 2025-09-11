@@ -138,14 +138,16 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
     db.add(ChatMessage(user_email=user.email, sender="user", message=request.question))
     await db.commit()
 
-    # --- Construcción de Contexto Avanzado para la IA (Ruta 2) ---
+    # --- INICIO DE LA CORRECCIÓN ---
     try:
         dolar_data = await market_data.get_dolar_prices()
         real_time_context = f"CONTEXTO EN TIEMPO REAL: El Dólar Blue está a ${dolar_data['blue']['venta']} para la venta. El Dólar Oficial está a ${dolar_data['oficial']['venta']}."
     except Exception as e:
-        real_time_context = "CONTEXTO EN TIEMPO REAL: No se pudo obtener la cotización del dólar en este momento."
+        # Si la API de dólar falla, informamos al log y continuamos sin ese dato.
+        print(f"ALERTA: No se pudo obtener datos del dólar. Causa: {e}")
+        real_time_context = "CONTEXTO EN TIEMPO REAL: La cotización del dólar no está disponible en este momento."
+    # --- FIN DE LA CORRECCIÓN ---
 
-    # 2. Obtenemos el perfil del usuario y los nuevos planes
     summary_data = await finance.get_dashboard_summary(db=db, user=user)
     financial_context = f"Contexto financiero del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."
     risk_profile = user.risk_profile or "no definido"
@@ -163,7 +165,6 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
 
     full_context = f"{real_time_context}\n{financial_context}\n{profile_context}"
 
-    # 3. Historial de Chat Reciente
     result = await db.execute(select(ChatMessage).where(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.desc()).limit(10))
     chat_history_db = result.scalars().all()
     chat_history_db.reverse()
