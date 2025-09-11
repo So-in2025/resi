@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
@@ -12,6 +11,7 @@ import AddExpenseForm from '@/components/AddExpenseForm';
 import Header from '@/components/Header';
 import SectionHeader from '@/components/SectionHeader';
 import { FaPlus, FaSave } from 'react-icons/fa';
+import apiClient from '@/lib/apiClient'; // IMPORTANTE: Usar apiClient
 
 // Tipos de datos
 interface BudgetItem {
@@ -67,9 +67,10 @@ export default function PlannerPage() {
       }
       setIsLoading(true);
       try {
+        const apiHeaders = { headers: { 'Authorization': `Bearer ${session.user.email}` } };
         const [budgetResponse, dashboardResponse] = await Promise.all([
-          axios.get<BudgetResponse>('https://resi-vn4v.onrender.com/finance/budget', { headers: { 'Authorization': `Bearer ${session.user.email}` } }),
-          axios.get<DashboardData>('https://resi-vn4v.onrender.com/finance/dashboard-summary', { headers: { 'Authorization': `Bearer ${session.user.email}` } }),
+          apiClient.get<BudgetResponse>('/finance/budget', apiHeaders),
+          apiClient.get<DashboardData>('/finance/dashboard-summary', apiHeaders),
         ]);
         
         const savedData = budgetResponse.data;
@@ -139,7 +140,7 @@ export default function PlannerPage() {
 
         const toastId = toast.loading("Guardando planificacion...");
         try {
-            await axios.post('https://resi-vn4v.onrender.com/finance/budget',
+            await apiClient.post('/finance/budget',
                 { income, items: budgetItems },
                 { headers: { 'Authorization': `Bearer ${session.user?.email}` } }
             );
@@ -237,7 +238,6 @@ export default function PlannerPage() {
             </div>
         </main>
         
-        {/* Contenedor flotante para el botón de añadir gastos */}
         <div className="fixed bottom-4 right-4 z-50">
             <FloatingActionButton onClick={() => setIsModalOpen(true)} />
         </div>

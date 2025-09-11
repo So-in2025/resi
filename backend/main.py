@@ -140,9 +140,15 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
 
     # --- Construcción de Contexto Avanzado para la IA (Ruta 2) ---
     try:
+        # CORRECCIÓN: Manejo de errores más robusto
         dolar_data = await market_data.get_dolar_prices()
-        real_time_context = f"CONTEXTO EN TIEMPO REAL: El Dólar Blue está a ${dolar_data['blue']['venta']} para la venta. El Dólar Oficial está a ${dolar_data['oficial']['venta']}."
+        if dolar_data:
+             real_time_context = f"CONTEXTO EN TIEMPO REAL: El Dólar Blue está a ${dolar_data['blue']['venta']} para la venta. El Dólar Oficial está a ${dolar_data['oficial']['venta']}."
+        else:
+            real_time_context = "CONTEXTO EN TIEMPO REAL: No se pudo obtener la cotización del dólar en este momento."
     except Exception as e:
+        # Si la API de dólar falla, continuamos sin ella
+        print(f"Error al obtener datos del dólar: {e}")
         real_time_context = "CONTEXTO EN TIEMPO REAL: No se pudo obtener la cotización del dólar en este momento."
 
     # 2. Obtenemos el perfil del usuario y los nuevos planes
