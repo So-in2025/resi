@@ -1,11 +1,11 @@
 # En: backend/routers/cultivation.py
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 import random
 from sqlalchemy.orm import Session
 import json
 
 from database import User, CultivationPlan
-from schemas import CultivationPlanRequest, AIChatInput, ValidateParamsRequest
+from schemas import CultivationPlanRequest, AIChatInput, ValidateParamsRequest, CultivationPlanResponse, CultivationPlanResult
 from dependencies import get_db, get_user_or_create
 
 router = APIRouter(
@@ -13,8 +13,22 @@ router = APIRouter(
     tags=["Cultivation"]
 )
 
+@router.get("/latest", response_model=Optional[CultivationPlanResponse])
+def get_latest_plan(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    """
+    Obtiene el último plan de cultivo guardado por el usuario.
+    """
+    latest_plan = db.query(CultivationPlan).filter(CultivationPlan.user_email == user.email).order_by(CultivationPlan.created_at.desc()).first()
+    if not latest_plan:
+        return None
+    
+    # Asegurar que el campo plan_data sea un diccionario antes de pasarlo al esquema
+    plan_data = json.loads(latest_plan.plan_data)
+    
+    return CultivationPlanResponse(plan_data=plan_data, created_at=latest_plan.created_at)
+
 # CORRECCIÓN: Convertido a sync
-@router.post("/generate-plan")
+@router.post("/generate-plan", response_model=CultivationPlanResult)
 def generate_cultivation_plan(request: CultivationPlanRequest, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     tips = ""
     if request.experience == 'principiante':

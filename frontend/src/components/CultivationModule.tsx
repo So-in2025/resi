@@ -1,14 +1,14 @@
 // En: frontend/src/components/CultivationModule.tsx
 'use client';
 
-import { useState } from 'react';
-import { useSession, signIn } from 'next-auth/react';
+import { useState, useEffect } from 'react';
 import { 
   FaSeedling, FaCalculator, FaTools, FaBook, FaRobot,
   FaCheckCircle, FaExclamationCircle, FaDollarSign, FaBoxes, FaLeaf, FaMicrochip, FaDownload, FaImage, FaTrashAlt, FaSun, FaLightbulb, FaSmile, FaMapMarkerAlt
 } from "react-icons/fa";
 import toast from 'react-hot-toast';
 import apiClient from '@/lib/apiClient';
+import { useSession, signIn } from 'next-auth/react';
 
 interface TabButtonProps {
     isActive: boolean;
@@ -28,11 +28,6 @@ const TabButton = ({ isActive, onClick, icon: Icon, label }: TabButtonProps) => 
   </button>
 );
 
-interface CultivationModuleProps {
-    initialMethod: string;
-    userFinancialData: { supermarketSpending: number } | null;
-}
-
 interface AiPlanResult {
     crop: string;
     system: string;
@@ -41,7 +36,10 @@ interface AiPlanResult {
     tips: string;
     imagePrompt?: string; 
 }
-
+interface CultivationPlan {
+    plan_data: AiPlanResult;
+    created_at: string;
+}
 interface ValidationResult {
     isValid: boolean;
     advice: string;
@@ -52,10 +50,16 @@ interface ChatResponse {
     imagePrompt?: string;
 }
 
+interface CultivationModuleProps {
+    initialMethod: string;
+    userFinancialData: { supermarketSpending: number } | null;
+}
+
 export default function CultivationModule({ initialMethod, userFinancialData }: CultivationModuleProps) {
   const { data: session, status } = useSession();
   const [method, setMethod] = useState(initialMethod);
   const [activeTab, setActiveTab] = useState('planificacion');
+  const [latestPlan, setLatestPlan] = useState<CultivationPlan | null>(null);
 
   // Estados Unificados para Planificación
   const [space, setSpace] = useState('');
@@ -85,6 +89,24 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
   // Estados Unificados para Calculadora de Ahorro
   const [monthlyVegetableExpense, setMonthlyVegetableExpense] = useState('');
   const [projectedSavings, setProjectedSavings] = useState(0);
+  
+  // Nuevo: Cargar el último plan al montar el componente
+  useEffect(() => {
+    const fetchLatestPlan = async () => {
+      if (session?.user?.email) {
+        try {
+          const response = await apiClient.get<CultivationPlan>('/cultivation/latest', {
+            headers: { 'Authorization': `Bearer ${session.user.email}` }
+          });
+          setLatestPlan(response.data);
+        } catch (error) {
+          console.error("No se encontró un plan de cultivo previo.", error);
+        }
+      }
+    };
+    fetchLatestPlan();
+  }, [session]);
+  
 
   const generateAiPlan = async () => {
     if (!session?.user?.email) {
@@ -213,7 +235,7 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
         <TabButton isActive={activeTab === 'planificacion'} onClick={() => setActiveTab('planificacion')} icon={FaSeedling} label="Planificación" />
         <TabButton isActive={activeTab === 'control'} onClick={() => setActiveTab('control')} icon={FaTools} label="Control" />
         <TabButton isActive={activeTab === 'ahorro'} onClick={() => setActiveTab('ahorro')} icon={FaCalculator} label="Ahorro" />
-        <TabButton isActive={activeTab === 'recursos'} onClick={() => setActiveTab('recursos')} icon={FaBook} label="Recursos" />
+        <TabButton isActive={activeTab === 'plan-guardado'} onClick={() => setActiveTab('plan-guardado')} icon={FaLeaf} label="Plan Guardado" />
         <TabButton isActive={activeTab === 'ia-chat'} onClick={() => setActiveTab('ia-chat')} icon={FaRobot} label="Asistencia IA" />
       </div>
 
@@ -368,28 +390,28 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
             )}
           </div>
         )}
-        
-        {activeTab === 'recursos' && (
-          <div className="space-y-6">
-             <h3 className="text-3xl font-bold text-green-400 text-center mb-6">Recursos y Guías por IA</h3>
-             <p className="text-center text-lg mb-8">Resi te conecta con el conocimiento que necesitas.</p>
-             <div className="space-y-4">
-               <div className="bg-gray-700 rounded-lg p-4">
-                 <h4 className="text-lg font-semibold text-white mb-2">{method === 'hydroponics' ? 'Nutrientes y pH' : 'Abonos y Compost'}</h4>
-                 <p className="text-sm text-gray-400"><span className="text-green-400">Resi te puede dar recomendaciones personalizadas</span> sobre los mejores productos para tu cultivo y cómo usarlos.</p>
-               </div>
-               <div className="bg-gray-700 rounded-lg p-4">
-                 <h4 className="text-lg font-semibold text-white mb-2">Pesticidas Orgánicos</h4>
-                 <p className="text-sm text-gray-400"><span className="text-green-400">La IA te puede sugerir alternativas naturales</span> y seguras para combatir plagas, con instrucciones paso a paso.</p>
-               </div>
-               <div className="bg-gray-700 rounded-lg p-4">
-                 <h4 className="text-lg font-semibold text-white mb-2">Herramientas Esenciales</h4>
-                 <p className="text-sm text-gray-400"><span className="text-green-400">Resi te puede recomendar las herramientas clave</span> para tu sistema, desde medidores hasta bombas o palas.</p>
-               </div>
-             </div>
-           </div>
-        )}
 
+        {/* Nuevo bloque para mostrar el plan guardado */}
+        {activeTab === 'plan-guardado' && (
+            <div className="space-y-6">
+              <h3 className="text-3xl font-bold text-green-400 text-center mb-6">Tu Último Plan Guardado</h3>
+              {latestPlan ? (
+                  <div className="mt-8 p-6 bg-gray-700 rounded-lg shadow-inner space-y-4">
+                      <h4 className="text-2xl font-bold text-white">Plan generado el: {new Date(latestPlan.created_at).toLocaleDateString('es-AR')}</h4>
+                      <div className="text-lg space-y-2">
+                        <p><span className="font-semibold text-white">Cultivo Sugerido:</span> <span className="text-green-300">{latestPlan.plan_data.crop}</span></p>
+                        <p><span className="font-semibold text-white">Sistema Recomendado:</span> <span className="text-green-300">{latestPlan.plan_data.system}</span></p>
+                        <p><span className="font-semibold text-white">Materiales Clave:</span> <span className="text-green-300">{latestPlan.plan_data.materials}</span></p>
+                        <p><span className="font-semibold text-white">Ahorro Proyectado:</span> <span className="text-green-300">{latestPlan.plan_data.projectedSavings}</span></p>
+                        <p><span className="font-semibold text-white">Tips de Resi:</span> <span className="text-green-300">{latestPlan.plan_data.tips}</span></p>
+                      </div>
+                  </div>
+              ) : (
+                  <p className="text-center text-gray-400">Aún no has generado ni guardado ningún plan. ¡Ve a la pestaña de Planificación para crear el tuyo!</p>
+              )}
+            </div>
+        )}
+        
         {activeTab === 'ia-chat' && (
           <div className="space-y-6">
             <h3 className="text-3xl font-bold text-green-400 text-center mb-6">Asistencia Directa con Resi</h3>

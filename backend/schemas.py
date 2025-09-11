@@ -69,6 +69,7 @@ class ChatMessageResponse(BaseModel):
         from_attributes = True
 
 # --- NUEVOS SCHEMAS DE RESPUESTA, ajustados para la base de datos real ---
+# (Estos son los que te di en el mensaje anterior, ahora combinados con el resto)
 
 class AchievementSchema(BaseModel):
     id: str
@@ -98,5 +99,20 @@ class GameProfileResponse(BaseModel):
     community_points: int
     achievements: List[UserAchievementSchema] = []
     # CORRECCIÓN: Se cambia orm_mode por from_attributes
+    class Config:
+        from_attributes = True
+
+# NUEVOS ESQUEMAS PARA CULTIVO
+class CultivationPlanResult(BaseModel):
+    crop: str
+    system: str
+    materials: str
+    projectedSavings: str
+    tips: str
+    imagePrompt: Optional[str] = None
+    
+class CultivationPlanResponse(BaseModel):
+    plan_data: CultivationPlanResult
+    created_at: datetime
     class Config:
         from_attributes = True
