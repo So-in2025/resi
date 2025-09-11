@@ -64,3 +64,29 @@ class ChatMessageResponse(BaseModel):
     timestamp: datetime
     class Config:
         orm_mode = True
+
+# --- NUEVOS SCHEMAS PARA GAMIFICACIÓN ---
+class AchievementSchema(BaseModel):
+    id: str
+    name: str
+    description: str
+    icon: Optional[str] = None
+    points: int
+    type: str
+
+class UserAchievementSchema(BaseModel):
+    achievement: AchievementSchema
+    progress: int
+    is_completed: bool
+    completion_date: Optional[datetime] = None
+
+class GameProfileSchema(BaseModel):
+    resi_score: int
+    resilient_coins: int
+    financial_points: int
+    cultivation_points: int
+    community_points: int
+    achievements: List[UserAchievementSchema] = []
+
+    class Config:
+        from_attributes = True

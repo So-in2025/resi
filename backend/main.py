@@ -11,10 +11,12 @@ from sqlalchemy.orm import Session
 from typing import List
 
 # --- Importaciones de nuestros nuevos módulos ---
-from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan
+# CORRECCIÓN: Se añaden las clases GameProfile, Achievement y UserAchievement
+from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini
-from routers import finance, cultivation, family, market_data
+# CORRECCIÓN: Se importa el router de gamification
+from routers import finance, cultivation, family, market_data, gamification
 
 # --- Creación de la aplicación FastAPI ---
 app = FastAPI(title="Resi API", version="4.0.0")
@@ -34,6 +36,8 @@ app.include_router(finance.goals_router)
 app.include_router(cultivation.router)
 app.include_router(family.router)
 app.include_router(market_data.router) # <-- INCLUIMOS EL NUEVO ROUTER
+# CORRECCIÓN: Se incluye el nuevo router de gamificación
+app.include_router(gamification.router)
 
 # --- Configuración de IA ---
 speech_client = speech.SpeechClient()
