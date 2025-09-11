@@ -17,15 +17,16 @@ import FamilyPlannerModule from "@/components/FamilyPlannerModule";
 import apiClient from "@/lib/apiClient";
 import dynamic from 'next/dynamic';
 import { ChatWindow, ChatMessage } from "@/components/ChatWindow";
-import { FaComments } from "react-icons/fa";
+import { FaComments, FaClipboardList } from "react-icons/fa"; // Se añade el ícono para el botón
 import toast from 'react-hot-toast';
-import GamificationModule from "@/components/GamificationModule"; // <-- Importar el nuevo componente
+import GamificationModule from "@/components/GamificationModule";
 
 const VoiceChatDinamic = dynamic(() => import('@/components/VoiceChat'), {
   ssr: false, 
   loading: () => <div className="w-16 h-16 rounded-full bg-gray-700 animate-pulse" /> 
 });
 
+// 1. LOGO BETA APLICADO
 const HeroSection = () => (
   <div className="text-center mb-12 w-full max-w-4xl">
     <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4">
@@ -37,9 +38,36 @@ const HeroSection = () => (
   </div>
 );
 
+// 2. MODAL PARA LOGS DE UPDATES
+const UpdatesLogModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void; }) => (
+    <Modal isOpen={isOpen} onClose={onClose} title="Historial de Actualizaciones">
+        <div className="text-left text-gray-300 max-h-96 overflow-y-auto pr-4">
+            <div className="mb-6">
+                [cite_start]<h3 className="text-xl font-semibold text-green-400 mb-2">Septiembre 2025 - Ruta 2: Conexión con el mundo real [cite: 59]</h3>
+                <ul className="list-disc list-inside space-y-1 text-gray-300">
+                    [cite_start]<li><span className="font-semibold text-white">APIs Externas:</span> Se implementó un nuevo módulo (`market_data.py`) para consumir APIs de datos económicos. [cite: 60, 18]</li>
+                    [cite_start]<li><span className="font-semibold text-white">IA en Tiempo Real:</span> La inteligencia artificial ahora integra datos económicos actualizados en sus respuestas. [cite: 61]</li>
+                    [cite_start]<li><span className="font-semibold text-white">Contexto Mejorado:</span> El endpoint de chat fue actualizado para fusionar el contexto del usuario con los datos del mundo real. [cite: 62]</li>
+                </ul>
+            </div>
+            <div className="mb-6">
+                [cite_start]<h3 className="text-xl font-semibold text-gray-400 mb-2">Septiembre 2025 - Ruta 1: Hiper-personalización [cite: 63]</h3>
+                <ul className="list-disc list-inside space-y-1 text-gray-400">
+                    [cite_start]<li><span className="font-semibold text-white">Onboarding Ampliado:</span> Se mejoró el proceso inicial para incluir el perfil de riesgo y metas a largo plazo del usuario. [cite: 64]</li>
+                    [cite_start]<li><span className="font-semibold text-white">Planificador Familiar:</span> El módulo ahora cuenta con más opciones y guarda los planes de forma persistente. [cite: 65]</li>
+                    [cite_start]<li><span className="font-semibold text-white">Base de Datos:</span> Se reestructuró la base de datos para soportar el nuevo contexto. [cite: 66]</li>
+                    [cite_start]<li><span className="font-semibold text-white">Historial de Chat:</span> Las conversaciones ahora se guardan por usuario. [cite: 67]</li>
+                    [cite_start]<li><span className="font-semibold text-white">IA Personalizada:</span> El motor de IA fue actualizado para utilizar todo el contexto disponible del usuario. [cite: 68]</li>
+                </ul>
+            </div>
+        </div>
+    </Modal>
+);
+
 export default function HomePage() {
   const { data: session, status } = useSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false); // Estado para el nuevo modal
   const [initialExpenseText, setInitialExpenseText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [openAccordionId, setOpenAccordionId] = useState<string | null>(null);
@@ -48,7 +76,6 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [sharedFinancialData, setSharedFinancialData] = useState<{ supermarketSpending: number } | null>(null);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
-
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
@@ -174,6 +201,23 @@ export default function HomePage() {
         />
         <main className="flex-1 flex flex-col items-center p-4 md:p-8 text-white font-sans md:ml-20 pt-20 overflow-x-hidden">
         <HeroSection />
+
+          {/* 3. BOTÓN, LINK A CREADORES Y LINK A PRESENTACIÓN AÑADIDOS */}
+          <div className="flex flex-col sm:flex-row items-center gap-x-6 gap-y-3 mb-10 w-full max-w-4xl justify-center flex-wrap">
+            <button
+                onClick={() => setIsUpdatesModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-700/50 rounded-lg border border-gray-600 hover:bg-gray-600/50 transition-colors"
+            >
+                <FaClipboardList />
+                Logs de Updates
+            </button>
+            <p className="text-sm text-gray-400">
+                Desarrollado por <a href="https://websoin.netlify.app" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:underline font-semibold">SO-IN Soluciones Informáticas</a>
+            </p>
+             <a href="https://websoin.netlify.app/resi" target="_blank" rel="noopener noreferrer" className="text-sm text-green-400 hover:underline">
+                Conocé más sobre Resi
+             </a>
+          </div>
           
           <AnimatedMessage messages={[
               "Mi primer objetivo es aliviar ese estrés mental que nunca termina: contar los días para cobrar y sufrir por los números que no dan.",
@@ -260,7 +304,6 @@ export default function HomePage() {
             </Accordion>
           </div>
 
-           {/* ----- AÑADIR EL NUEVO MÓDULO DE GAMIFICACIÓN AQUÍ ----- */}
           <div id="modulo-gamificacion" className="mt-12 w-full max-w-4xl scroll-mt-20">
               <Accordion 
                   id="modulo-gamificacion"
@@ -271,7 +314,6 @@ export default function HomePage() {
                   <GamificationModule />
               </Accordion>
           </div>
-          {/* -------------------------------------------------------- */}
 
           <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-4">
             <button
@@ -287,6 +329,8 @@ export default function HomePage() {
           <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Registrar Nuevo Gasto">
             <AddExpenseForm onExpenseAdded={handleExpenseAdded} initialText={initialExpenseText}/>
           </Modal>
+
+          <UpdatesLogModal isOpen={isUpdatesModalOpen} onClose={() => setIsUpdatesModalOpen(false)} />
 
           <ChatWindow
             isOpen={isChatOpen}
