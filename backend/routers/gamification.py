@@ -1,5 +1,5 @@
 # En: backend/routers/gamification.py
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import List, Optional
@@ -57,7 +57,10 @@ async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSe
     # CORRECCIÓN DEFINITIVA: Se eliminó el await incorrecto que causaba el error.
     user_with_data = result.scalars().first()
 
-    if not user_with_data or not user_with_data.game_profile:
+    if not user_with_data:
+        raise HTTPException(status_code=404, detail="User not found while fetching game profile")
+
+    if not user_with_data.game_profile:
         # Si el usuario es nuevo y no tiene perfil, se crea uno.
         new_profile = GameProfile(user_email=user.email)
         db.add(new_profile)

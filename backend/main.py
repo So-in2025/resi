@@ -17,24 +17,28 @@ from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement
 from routers import finance, cultivation, family, market_data, gamification
 
-app = FastAPI(title="Resi API", version="4.0.0")
+app = FastAPI(title="Resi API", version="4.5.0")
 
 # --- Variables Globales para los Clientes ---
-# Se declaran aquí pero se inicializarán de forma segura en el evento startup.
+# Se declaran aquí como None. Se inicializarán de forma segura en el evento startup.
 speech_client = None
 model_chat = None
 
 @app.on_event("startup")
 async def startup_event():
+    """
+    Esta función se ejecuta una sola vez cuando la aplicación arranca.
+    Es el lugar SEGURO para inicializar clientes que hacen llamadas de red.
+    """
     global speech_client, model_chat
     
     # 1. Crear tablas de la base de datos
     await create_db_and_tables()
     
-    # 2. Inicializar cliente de Google Speech de forma segura
+    # 2. Inicializar cliente de Google Speech
     speech_client = speech.SpeechClient()
     
-    # 3. Configurar y inicializar el modelo de Gemini (IA) de forma segura
+    # 3. Configurar y inicializar el modelo de Gemini (IA)
     genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
     system_prompt_chat = textwrap.dedent("""
     Eres "Resi", un asistente de IA amigable, empático y experto en resiliencia económica y alimentaria para usuarios en Argentina. Tu propósito es empoderar a las personas para que tomen el control de sus finanzas y bienestar.
@@ -107,7 +111,7 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
         )
         audio_source = speech.RecognitionAudio(content=wav_audio_content)
         
-        # Ejecuta la llamada bloqueante en un hilo separado
+        # Se ejecuta la llamada bloqueante en un hilo separado para no congelar el servidor
         response = await loop.run_in_executor(
             None, lambda: speech_client.recognize(config=config, audio=audio_source)
         )
