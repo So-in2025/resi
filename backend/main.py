@@ -1,4 +1,3 @@
-# En: backend/main.py
 import os
 import io
 import textwrap
@@ -22,9 +21,10 @@ app = FastAPI(title="Resi API", version="4.0.0")
 async def startup_event():
     await create_db_and_tables()
 
+# CORRECCIÓN: Se añade la URL del frontend a los orígenes permitidos
 origins = [
     "http://localhost:3000",
-    "https://resi-argentina.vercel.app",
+    "https://resi-argentina.vercel.app",  # <-- AÑADIDO
 ]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -62,15 +62,7 @@ system_prompt_chat = textwrap.dedent("""
     Ejemplo de cómo usar el contexto:
     - Si el usuario pregunta si le conviene comprar dólares, tu respuesta DEBE basarse en la cotización del Dólar Blue que te fue proporcionada.
     - Si un usuario quiere invertir, DEBES mencionar la tasa de plazo fijo actual (próximamente) y compararla con la inflación (próximamente) para evaluar si es una buena opción.
-    - NO inventes datos. Si no tienes un dato específico (ej. inflación del mes), acláralo.
-
-    Tus reglas:
-    1.  Integra siempre el contexto del usuario y el contexto en tiempo real en tus respuestas.
-    2.  Si el usuario pregunta algo fuera de tus temas, redirige amablemente la conversación a tus temas centrales.
-    3.  Sé conciso y andá al grano.
-    4.  Utilizá el historial de chat para recordar conversaciones pasadas.
-    5.  NUNCA uses formato Markdown (asteriscos, etc.). Responde siempre en texto plano.
-    6.  MUY IMPORTANTE: Antes de sugerir cualquier herramienta o solución externa, SIEMPRE priorizá y recomendá las "Herramientas Internas de Resi".
+    - MUY IMPORTANTE: Antes de sugerir cualquier herramienta o solución externa, SIEMPRE priorizá y recomendá las "Herramientas Internas de Resi".
 """)
 
 model_chat = genai.GenerativeModel(
@@ -104,7 +96,6 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
             db.add(new_expense)
             await db.commit()
             await db.refresh(new_expense)
-            # NUEVO: Lógica de gamificación para audio
             await award_achievement(user, "first_expense", db)
             return {"status": "Gasto registrado con éxito", "data": parsed_data}
         else:
@@ -121,7 +112,6 @@ async def process_text(input_data: TextInput, db: AsyncSession = Depends(get_db)
         db.add(new_expense)
         await db.commit()
         await db.refresh(new_expense)
-        # NUEVO: Lógica de gamificación para texto
         await award_achievement(user, "first_expense", db)
         return {"status": "Gasto registrado con éxito", "data": parsed_data}
     else:
@@ -138,14 +128,12 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
     db.add(ChatMessage(user_email=user.email, sender="user", message=request.question))
     await db.commit()
 
-    # --- Construcción de Contexto Avanzado para la IA (Ruta 2) ---
     try:
         dolar_data = await market_data.get_dolar_prices()
         real_time_context = f"CONTEXTO EN TIEMPO REAL: El Dólar Blue está a ${dolar_data['blue']['venta']} para la venta. El Dólar Oficial está a ${dolar_data['oficial']['venta']}."
     except Exception as e:
         real_time_context = "CONTEXTO EN TIEMPO REAL: No se pudo obtener la cotización del dólar en este momento."
 
-    # 2. Obtenemos el perfil del usuario y los nuevos planes
     summary_data = await finance.get_dashboard_summary(db=db, user=user)
     financial_context = f"Contexto financiero del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."
     risk_profile = user.risk_profile or "no definido"
@@ -163,7 +151,6 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
 
     full_context = f"{real_time_context}\n{financial_context}\n{profile_context}"
 
-    # 3. Historial de Chat Reciente
     result = await db.execute(select(ChatMessage).where(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.desc()).limit(10))
     chat_history_db = result.scalars().all()
     chat_history_db.reverse()

@@ -1,17 +1,27 @@
-// En: frontend/src/lib/apiClient.ts
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
-// 1. Leemos la variable de entorno para obtener la URL base de nuestra API.
 const baseURL = process.env.NEXT_PUBLIC_API_URL;
 
-// 2. Creamos una instancia de Axios con una configuración centralizada.
-// Todos los componentes que importen este archivo usarán esta misma configuración.
 const apiClient = axios.create({
-  baseURL: baseURL, // El "conector" ya sabe a dónde apuntar.
+  baseURL: baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 5000, // Añade un tiempo de espera para evitar bloqueos
 });
 
-// 3. Exportamos el conector para que toda la aplicación pueda usarlo.
+// Interceptor para manejar errores de forma global
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.code === 'ERR_NETWORK') {
+      toast.error('Error de conexión con el servidor. Por favor, verifica tu conexión a internet.');
+    } else {
+      toast.error('Ocurrió un error inesperado al comunicarse con el servidor.');
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default apiClient;
