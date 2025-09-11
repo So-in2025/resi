@@ -26,15 +26,16 @@ model_chat = None
 
 @app.on_event("startup")
 async def startup_event():
+    """
+    Esta función se ejecuta una sola vez cuando la aplicación arranca.
+    Es el lugar SEGURO para inicializar clientes que hacen llamadas de red.
+    """
     global speech_client, model_chat
     
-    # 1. Crear tablas de la base de datos
     await create_db_and_tables()
     
-    # 2. Inicializar cliente de Google Speech de forma segura
     speech_client = speech.SpeechClient()
     
-    # 3. Configurar y inicializar el modelo de Gemini (IA) de forma segura
     genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
     system_prompt_chat = textwrap.dedent("""
     Eres "Resi", un asistente de IA amigable, empático y experto en resiliencia económica y alimentaria para usuarios en Argentina. Tu propósito es empoderar a las personas para que tomen el control de sus finanzas y bienestar.
