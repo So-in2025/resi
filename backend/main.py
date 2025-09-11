@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
 
-
 from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement, CultivationPlan
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement

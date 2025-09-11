@@ -30,7 +30,7 @@ async def get_user_or_create(user_email: str = Depends(get_current_user_email), 
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No se pudo verificar el email del usuario.")
     
     result = await db.execute(select(User).where(User.email == user_email))
-    user = (await result.scalars().first())
+    user = result.scalars().first()
     
     if not user:
         new_user = User(email=user_email, has_completed_onboarding=False)
@@ -43,8 +43,12 @@ async def get_user_or_create(user_email: str = Depends(get_current_user_email), 
     return user
 
 async def award_achievement(user: User, achievement_id: str, db: AsyncSession, progress_to_add: int = 1):
+    """
+    Función para otorgar y actualizar el progreso de un logro.
+    Devuelve un mensaje si el logro fue desbloqueado.
+    """
     result = await db.execute(select(Achievement).where(Achievement.id == achievement_id))
-    achievement = (await result.scalars().first())
+    achievement = result.scalars().first()
     if not achievement:
         print(f"Advertencia: Logro '{achievement_id}' no encontrado en la base de datos.")
         return None
@@ -53,7 +57,7 @@ async def award_achievement(user: User, achievement_id: str, db: AsyncSession, p
         select(UserAchievement)
         .filter(UserAchievement.user_email == user.email, UserAchievement.achievement_id == achievement_id)
     )
-    user_achiev = (await result_user_achiev.scalars().first())
+    user_achiev = result_user_achiev.scalars().first()
 
     if not user_achiev:
         user_achiev = UserAchievement(user_email=user.email, achievement_id=achievement_id)
@@ -64,7 +68,7 @@ async def award_achievement(user: User, achievement_id: str, db: AsyncSession, p
         user_achiev.progress += progress_to_add
         
         result_profile = await db.execute(select(GameProfile).filter(GameProfile.user_email == user.email))
-        profile = (await result_profile.scalars().first())
+        profile = result_profile.scalars().first()
 
         if user_achiev.progress >= achievement.points:
             user_achiev.is_completed = True
@@ -88,7 +92,7 @@ async def award_achievement(user: User, achievement_id: str, db: AsyncSession, p
 
 async def parse_expense_with_gemini(text: str, db: AsyncSession, user_email: str) -> Optional[dict]:
     result = await db.execute(select(BudgetItem.category).filter(BudgetItem.user_email == user_email, BudgetItem.category != "_income"))
-    budget_items = (await result.scalars().all())
+    budget_items = result.scalars().all()
     user_categories = [item for item in budget_items]
     valid_categories = list(set([
         "Vivienda", "Servicios Básicos", "Supermercado", "Kioscos", "Transporte", "Salud",

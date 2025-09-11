@@ -16,8 +16,7 @@ goals_router = APIRouter(prefix="/finance/goals", tags=["Goals"])
 @router.get("/budget")
 async def get_budget(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     result = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email))
-    # CORRECCIÓN: .all() debe ser esperado (awaited)
-    items = await result.scalars().all()
+    items = result.scalars().all()
     income_item = next((item for item in items if item.category == "_income"), None)
     income = income_item.allocated_amount if income_item else 0
     budget_items = [item for item in items if item.category != "_income"]
@@ -39,8 +38,7 @@ async def update_budget(budget_input: BudgetInput, db: AsyncSession = Depends(ge
 @router.get("/expenses")
 async def get_expenses(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     result = await db.execute(select(Expense).where(Expense.user_email == user.email).order_by(Expense.date.desc()))
-    # CORRECCIÓN: .all() debe ser esperado (awaited)
-    return await result.scalars().all()
+    return result.scalars().all()
 
 @router.delete("/expenses/{expense_id}")
 async def delete_expense(expense_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
@@ -56,14 +54,12 @@ async def delete_expense(expense_id: int, db: AsyncSession = Depends(get_db), us
 async def get_dashboard_summary(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     try:
         result_budget = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email))
-        # CORRECCIÓN: .all() debe ser esperado (awaited)
-        budget_items = await result_budget.scalars().all()
+        budget_items = result_budget.scalars().all()
         income = next((item.allocated_amount for item in budget_items if item.category == "_income"), 0)
         today = datetime.utcnow()
         start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         result_expenses = await db.execute(select(Expense).where(Expense.date >= start_of_month, Expense.user_email == user.email))
-        # CORRECCIÓN: .all() debe ser esperado (awaited)
-        expenses_this_month = await result_expenses.scalars().all()
+        expenses_this_month = result_expenses.scalars().all()
         total_spent = sum(expense.amount for expense in expenses_this_month)
         summary = {}
         icons = {'Vivienda': '🏠', 'Servicios Básicos': '💡', 'Supermercado': '🛒', 'Kioscos': '🍫', 'Transporte': '🚗', 'Salud': '⚕️', 'Deudas': '💳', 'Préstamos': '🏦', 'Entretenimiento': '🎬', 'Hijos': '🧑‍🍼', 'Mascotas': '🐾', 'Cuidado Personal': '🧴', 'Vestimenta': '👕', 'Ahorro': '💰', 'Inversión': '📈', 'Otros': '💸'}
@@ -82,14 +78,12 @@ async def get_dashboard_summary(db: AsyncSession = Depends(get_db), user: User =
 async def get_resilience_summary(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     try:
         result_budget = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email))
-        # CORRECCIÓN: .all() debe ser esperado (awaited)
-        budget_items = await result_budget.scalars().all()
+        budget_items = result_budget.scalars().all()
         income = next((item.allocated_amount for item in budget_items if item.category == "_income"), 0)
         today = datetime.utcnow()
         start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         result_expenses = await db.execute(select(Expense).where(Expense.date >= start_of_month, Expense.user_email == user.email))
-        # CORRECCIÓN: .all() debe ser esperado (awaited)
-        expenses_this_month = await result_expenses.scalars().all()
+        expenses_this_month = result_expenses.scalars().all()
         total_spent = sum(expense.amount for expense in expenses_this_month)
         title = "¡Felicitaciones!"
         message = "Tus finanzas están bajo control este mes."
@@ -123,8 +117,7 @@ async def get_monthly_distribution(db: AsyncSession = Depends(get_db), user: Use
     today = datetime.utcnow()
     start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     result = await db.execute(select(Expense.category, func.sum(Expense.amount).label('total_spent')).where(Expense.user_email == user.email, Expense.date >= start_of_month).group_by(Expense.category))
-    # CORRECCIÓN: .all() debe ser esperado (awaited)
-    distribution = await result.all()
+    distribution = result.all()
     return [{"name": item.category, "value": item.total_spent} for item in distribution]
 
 @router.get("/analysis/spending-trend")
@@ -136,8 +129,7 @@ async def get_spending_trend(db: AsyncSession = Depends(get_db), user: User = De
         month_end = month_start.replace(month=month_start.month + 1) if month_start.month < 12 else month_start.replace(year=month_start.year + 1, month=1)
         month_name = month_start.strftime("%b")
         result = await db.execute(select(Expense.category, func.sum(Expense.amount).label('total_spent')).where(Expense.user_email == user.email, Expense.date >= month_start, Expense.date < month_end).group_by(Expense.category).order_by(func.sum(Expense.amount).desc()).limit(5))
-        # CORRECCIÓN: .all() debe ser esperado (awaited)
-        expenses_in_month = await result.all()
+        expenses_in_month = result.all()
         month_data = {"name": month_name}
         for expense in expenses_in_month:
             month_data[expense.category] = expense.total_spent
@@ -147,8 +139,7 @@ async def get_spending_trend(db: AsyncSession = Depends(get_db), user: User = De
 @goals_router.get("/", response_model=List[dict])
 async def get_goals(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     result = await db.execute(select(SavingGoal).where(SavingGoal.user_email == user.email))
-    # CORRECCIÓN: .all() debe ser esperado (awaited)
-    goals = await result.scalars().all()
+    goals = result.scalars().all()
     return [{"id": goal.id, "name": goal.name, "target_amount": goal.target_amount, "current_amount": goal.current_amount} for goal in goals]
 
 @goals_router.post("/")
@@ -162,15 +153,13 @@ async def create_goal(goal: GoalInput, db: AsyncSession = Depends(get_db), user:
 @goals_router.get("/projection/{goal_id}")
 async def get_goal_projection(goal_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     result_budget = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email, BudgetItem.category == "Ahorro"))
-    # CORRECCIÓN: .first() debe ser esperado (awaited)
-    ahorro_budget = await result_budget.scalars().first()
+    ahorro_budget = result_budget.scalars().first()
     monthly_saving = ahorro_budget.allocated_amount if ahorro_budget else 0
     if monthly_saving <= 0:
         return {"months_remaining": -1, "suggestion": "No tenés un monto asignado para 'Ahorro' en tu presupuesto. ¡Andá al Planificador para agregarlo!"}
     
     result_goal = await db.execute(select(SavingGoal).where(SavingGoal.id == goal_id, SavingGoal.user_email == user.email))
-    # CORRECCIÓN: .first() debe ser esperado (awaited)
-    goal = await result_goal.scalars().first()
+    goal = result_goal.scalars().first()
     
     if not goal:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meta no encontrada")
@@ -183,8 +172,7 @@ async def get_goal_projection(goal_id: int, db: AsyncSession = Depends(get_db), 
     suggestion = f"Si seguís ahorrando ${monthly_saving:,.0f} por mes, vas a alcanzar tu meta en aproximadamente {months_remaining} meses."
     
     result_high_expense = await db.execute(select(Expense.category, func.sum(Expense.amount).label('total')).where(Expense.user_email == user.email, Expense.category.notin_(['Ahorro', 'Inversión'])).group_by(Expense.category).order_by(func.sum(Expense.amount).desc()).limit(1))
-    # CORRECCIÓN: .first() debe ser esperado (awaited)
-    high_expense_category = await result_high_expense.first()
+    high_expense_category = result_high_expense.first()
     
     if high_expense_category:
         cut_amount = high_expense_category.total * 0.10
