@@ -19,6 +19,7 @@ import dynamic from 'next/dynamic';
 import { ChatWindow, ChatMessage } from "@/components/ChatWindow";
 import { FaComments } from "react-icons/fa";
 import toast from 'react-hot-toast';
+import GamificationModule from "@/components/GamificationModule"; // <-- Importar el nuevo componente
 
 const VoiceChatDinamic = dynamic(() => import('@/components/VoiceChat'), {
   ssr: false, 
@@ -159,7 +160,7 @@ export default function HomePage() {
     setSharedFinancialData(data);
   }, []);
 
-  const moduleTitle = `Módulo 2: Tu ${selectedGardeningMethod === 'hydroponics' ? 'Sistema Hidropónico' : 'Huerto Orgánico'}`;
+  const moduleTitle = `Módulo 2: Tu ${selectedGardeningMethod === 'hydroponics' ? 'Sistema de Cultivo' : 'Sistema de Cultivo'}`;
   
   return (
     <>
@@ -171,9 +172,8 @@ export default function HomePage() {
           onClose={() => setIsSidebarOpen(false)}
           onSidebarClick={handleSidebarClick}
         />
-        
-        <main className="flex-1 flex flex-col items-center p-4 md:p-8 text-white font-sans md:ml-20 pt-20">
-          <HeroSection />
+        <main className="flex-1 flex flex-col items-center p-4 md:p-8 text-white font-sans md:ml-20 pt-20 overflow-x-hidden">
+        <HeroSection />
           
           <AnimatedMessage messages={[
               "Mi primer objetivo es aliviar ese estrés mental que nunca termina: contar los días para cobrar y sufrir por los números que no dan.",
@@ -259,6 +259,19 @@ export default function HomePage() {
               <FamilyPlannerModule />
             </Accordion>
           </div>
+
+           {/* ----- AÑADIR EL NUEVO MÓDULO DE GAMIFICACIÓN AQUÍ ----- */}
+          <div id="modulo-gamificacion" className="mt-12 w-full max-w-4xl scroll-mt-20">
+              <Accordion 
+                  id="modulo-gamificacion"
+                  title="Módulo 4: Comunidad y Gamificación"
+                  isOpen={openAccordionId === 'modulo-gamificacion'}
+                  onToggle={() => handleAccordionToggle('modulo-gamificacion')}
+              >
+                  <GamificationModule />
+              </Accordion>
+          </div>
+          {/* -------------------------------------------------------- */}
 
           <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-4">
             <button

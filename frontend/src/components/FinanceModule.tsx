@@ -1,4 +1,3 @@
-// En: frontend/src/components/FinanceModule.tsx
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -6,12 +5,11 @@ import Planner from './Planner';
 import SavingGoals from './SavingGoals';
 import History from './History';
 import Analysis from './Analysis';
-import { FaMoneyBillWave, FaBullseye, FaHistory, FaChartLine, FaSync, FaExclamationCircle, FaRobot } from 'react-icons/fa';
+import { FaMoneyBillWave, FaBullseye, FaHistory, FaChartLine, FaExclamationCircle, FaRobot } from 'react-icons/fa';
 import { useSession, signIn } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import apiClient from '@/lib/apiClient';
 
-// --- COMPONENTES INTERNOS Y TIPOS (SIN CAMBIOS) ---
 interface TabButtonProps {
     isActive: boolean;
     onClick: () => void;
@@ -22,7 +20,7 @@ interface TabButtonProps {
 const TabButton = ({ isActive, onClick, children, icon: Icon }: TabButtonProps) => (
   <button
     onClick={onClick}
-    className={`md:flex-1 flex items-center justify-center md:justify-start gap-2 px-4 py-3 font-semibold rounded-t-lg transition-colors text-sm md:text-base ${
+    className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 py-3 font-semibold rounded-t-lg transition-colors text-sm md:text-base ${
       isActive ? 'bg-gray-700 text-green-400 border-b-2 border-green-400' : 'bg-gray-800 text-gray-400 hover:bg-gray-700/50'
     }`}
   >
@@ -61,10 +59,27 @@ export interface FinancialData {
 
 interface FinanceModuleProps {
     onDataLoaded: (data: { supermarketSpending: number }) => void;
-    isOpen: boolean;
+    isOpen?: boolean;
 }
 
-// --- COMPONENTE PRINCIPAL ---
+// Skeleton responsive
+const FinanceModuleSkeleton = () => (
+  <div className="w-full bg-gray-800 rounded-lg p-4 md:p-6 animate-pulse overflow-hidden">
+    <div className="h-6 w-1/2 bg-gray-700 rounded-md mb-4"></div>
+    <div className="flex flex-wrap gap-2 border-b border-gray-700 pb-2 mb-4">
+      <div className="h-10 flex-1 min-w-[70px] bg-gray-700 rounded-t-lg"></div>
+      <div className="h-10 flex-1 min-w-[70px] bg-gray-800 rounded-t-lg"></div>
+      <div className="h-10 flex-1 min-w-[70px] bg-gray-800 rounded-t-lg"></div>
+      <div className="h-10 flex-1 min-w-[70px] bg-gray-800 rounded-t-lg"></div>
+    </div>
+    <div className="space-y-4">
+      <div className="h-4 bg-gray-700 rounded w-3/4"></div>
+      <div className="h-4 bg-gray-700 rounded w-1/2"></div>
+      <div className="h-4 bg-gray-700 rounded w-2/3"></div>
+    </div>
+  </div>
+);
+
 export default function FinanceModule({ onDataLoaded, isOpen }: FinanceModuleProps) {
   const { data: session, status } = useSession();
   const [activeTab, setActiveTab] = useState('planificador');
@@ -122,16 +137,16 @@ export default function FinanceModule({ onDataLoaded, isOpen }: FinanceModulePro
     );
   }
 
-  if (isLoading && isOpen) {
-    return <div className="flex items-center justify-center h-64"><FaSync className="animate-spin text-4xl text-gray-400" /><p className="ml-4 text-gray-400">Analizando tus finanzas...</p></div>;
+  if ((isLoading || status === 'loading') && isOpen) {
+    return <FinanceModuleSkeleton />;
   }
 
   if (error) {
     return <div className="flex items-center justify-center h-64 text-red-400"><FaExclamationCircle className="text-4xl" /><p className="ml-4">{error}</p></div>;
   }
-  
+
   if (!financialData) {
-    return null; 
+    return null;
   }
 
   return (
@@ -143,11 +158,7 @@ export default function FinanceModule({ onDataLoaded, isOpen }: FinanceModulePro
         <TabButton isActive={activeTab === 'historial'} onClick={() => setActiveTab('historial')} icon={FaHistory}>Historial</TabButton>
         <TabButton isActive={activeTab === 'analisis'} onClick={() => setActiveTab('analisis')} icon={FaChartLine}>Análisis</TabButton>
       </div>
-      {/* SOLUCIÓN: Se agrega la clase `overflow-x-auto`.
-        Esto crea un contexto de scroll horizontal *dentro* de este div si su contenido (Planner, Analysis, etc.)
-        es más ancho que el espacio disponible, evitando que se rompa el layout general de la página.
-      */}
-      <div className="mt-4 md:mt-6 p-2 overflow-x-auto">
+      <div className="mt-4 md:mt-6 p-2">
         {activeTab === 'planificador' && <Planner budgetData={financialData.budget} onBudgetUpdate={fetchAllData} />}
         {activeTab === 'metas' && <SavingGoals goalsData={financialData.goals || []} onGoalUpdate={fetchAllData} />}
         {activeTab === 'historial' && <History expensesData={financialData.expenses || []} onExpenseUpdate={fetchAllData} />}
