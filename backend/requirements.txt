@@ -7,7 +7,6 @@ pydantic
 python-multipart
 soundfile
 google-cloud-speech
-spacy==3.7.5
 psycopg2-binary
 google-generativeai # <-- Agregada para la integración del LLM
 httpx
