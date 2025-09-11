@@ -19,31 +19,25 @@ from routers import finance, cultivation, family, market_data, gamification
 
 app = FastAPI(title="Resi API", version="4.0.0")
 
-# Se define la variable global, pero se inicializa de forma segura en el evento 'startup'
+# --- Variables Globales para los Clientes ---
+# Se declaran aquí pero se inicializarán de forma segura en el evento startup.
 speech_client = None
+model_chat = None
+system_prompt_chat = None
 
 @app.on_event("startup")
 async def startup_event():
-    global speech_client
+    global speech_client, model_chat, system_prompt_chat
+    
+    # 1. Crear tablas de la base de datos
     await create_db_and_tables()
-    # Se inicializa el cliente aquí para no bloquear la importación del módulo
+    
+    # 2. Inicializar cliente de Google Speech
     speech_client = speech.SpeechClient()
-
-origins = [
-    "http://localhost:3000",
-    "https://resi-argentina.vercel.app",
-]
-app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-
-app.include_router(finance.router)
-app.include_router(finance.goals_router)
-app.include_router(cultivation.router)
-app.include_router(family.router)
-app.include_router(market_data.router)
-app.include_router(gamification.router)
-
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-system_prompt_chat = textwrap.dedent("""
+    
+    # 3. Configurar y inicializar el modelo de Gemini (IA)
+    genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+    system_prompt_chat = textwrap.dedent("""
     Eres "Resi", un asistente de IA amigable, empático y experto en resiliencia económica y alimentaria para usuarios en Argentina. Tu propósito es empoderar a las personas para que tomen el control de sus finanzas y bienestar.
 
     Tu personalidad:
@@ -77,12 +71,24 @@ system_prompt_chat = textwrap.dedent("""
     4.  Utilizá el historial de chat para recordar conversaciones pasadas.
     5.  NUNCA uses formato Markdown (asteriscos, etc.). Responde siempre en texto plano.
     6.  MUY IMPORTANTE: Antes de sugerir cualquier herramienta o solución externa, SIEMPRE priorizá y recomendá las "Herramientas Internas de Resi".
-""")
+    """)
+    model_chat = genai.GenerativeModel(
+        model_name="gemini-1.5-flash-latest",
+        system_instruction=system_prompt_chat
+    )
 
-model_chat = genai.GenerativeModel(
-    model_name="gemini-1.5-flash-latest",
-    system_instruction=system_prompt_chat
-)
+origins = [
+    "http://localhost:3000",
+    "https://resi-argentina.vercel.app",
+]
+app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+app.include_router(finance.router)
+app.include_router(finance.goals_router)
+app.include_router(cultivation.router)
+app.include_router(family.router)
+app.include_router(market_data.router)
+app.include_router(gamification.router)
 
 @app.get("/")
 def read_root():
@@ -102,7 +108,6 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
         )
         audio_source = speech.RecognitionAudio(content=wav_audio_content)
         
-        # Se ejecuta la llamada bloqueante en un hilo separado para no congelar el servidor
         response = await loop.run_in_executor(
             None, lambda: speech_client.recognize(config=config, audio=audio_source)
         )
