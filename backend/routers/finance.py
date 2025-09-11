@@ -6,7 +6,6 @@ from sqlalchemy import func, delete
 from typing import List, Optional
 from datetime import datetime, timedelta
 
-# CORRECCIÓN: Importamos de forma absoluta desde la raíz del 'backend'.
 from database import User, Expense, BudgetItem, SavingGoal
 from schemas import BudgetInput, GoalInput, ResilienceSummary
 from dependencies import get_db, get_user_or_create
@@ -14,23 +13,21 @@ from dependencies import get_db, get_user_or_create
 router = APIRouter(prefix="/finance", tags=["Finance"])
 goals_router = APIRouter(prefix="/finance/goals", tags=["Goals"])
 
-# CORRECCIÓN: Se agrega 'async' y se usa la nueva sintaxis para la consulta
 @router.get("/budget")
 async def get_budget(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     result = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email))
-    items = result.scalars().all()
+    # CORRECCIÓN: .all() debe ser esperado (awaited)
+    items = await result.scalars().all()
     income_item = next((item for item in items if item.category == "_income"), None)
     income = income_item.allocated_amount if income_item else 0
     budget_items = [item for item in items if item.category != "_income"]
     return {"income": income, "items": budget_items}
 
-# CORRECCIÓN: Se agrega 'async' y se usa la nueva sintaxis para la consulta
 @router.post("/budget")
 async def update_budget(budget_input: BudgetInput, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     if not user.has_completed_onboarding:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Por favor, complete el onboarding primero.")
     
-    # CORRECCIÓN: Se usa await db.execute con la sentencia delete
     await db.execute(delete(BudgetItem).where(BudgetItem.user_email == user.email))
     
     db.add(BudgetItem(category="_income", allocated_amount=budget_input.income, user_email=user.email))
@@ -39,13 +36,12 @@ async def update_budget(budget_input: BudgetInput, db: AsyncSession = Depends(ge
     await db.commit()
     return {"status": "Presupuesto guardado con éxito"}
 
-# CORRECCIÓN: Se agrega 'async' y se usa la nueva sintaxis para la consulta
 @router.get("/expenses")
 async def get_expenses(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     result = await db.execute(select(Expense).where(Expense.user_email == user.email).order_by(Expense.date.desc()))
-    return result.scalars().all()
+    # CORRECCIÓN: .all() debe ser esperado (awaited)
+    return await result.scalars().all()
 
-# CORRECCIÓN: Se agrega 'async' y se usa la nueva sintaxis para la consulta
 @router.delete("/expenses/{expense_id}")
 async def delete_expense(expense_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     expense = await db.get(Expense, expense_id)
@@ -56,21 +52,21 @@ async def delete_expense(expense_id: int, db: AsyncSession = Depends(get_db), us
     await db.commit()
     return {"status": "Gasto eliminado con éxito"}
 
-
-# CORRECCIÓN: Se agrega 'async' y se usa la nueva sintaxis para la consulta
 @router.get("/dashboard-summary")
 async def get_dashboard_summary(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     try:
         result_budget = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email))
-        budget_items = result_budget.scalars().all()
+        # CORRECCIÓN: .all() debe ser esperado (awaited)
+        budget_items = await result_budget.scalars().all()
         income = next((item.allocated_amount for item in budget_items if item.category == "_income"), 0)
         today = datetime.utcnow()
         start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         result_expenses = await db.execute(select(Expense).where(Expense.date >= start_of_month, Expense.user_email == user.email))
-        expenses_this_month = result_expenses.scalars().all()
+        # CORRECCIÓN: .all() debe ser esperado (awaited)
+        expenses_this_month = await result_expenses.scalars().all()
         total_spent = sum(expense.amount for expense in expenses_this_month)
         summary = {}
-        icons = {'Vivienda': '🏠', 'Servicios Básicos': '💡', 'Supermercado': '🛒', 'Kioscos': '🍫', 'Transporte': '🚗', 'Salud': '⚕️', 'Deudas': '💳', 'Préstamos': '🏦', 'Entretenimiento': '🎬', 'Hijos': '🧑\u200d🍼', 'Mascotas': '🐾', 'Cuidado Personal': '🧴', 'Vestimenta': '👕', 'Ahorro': '💰', 'Inversión': '📈', 'Otros': '💸'}
+        icons = {'Vivienda': '🏠', 'Servicios Básicos': '💡', 'Supermercado': '🛒', 'Kioscos': '🍫', 'Transporte': '🚗', 'Salud': '⚕️', 'Deudas': '💳', 'Préstamos': '🏦', 'Entretenimiento': '🎬', 'Hijos': '🧑‍🍼', 'Mascotas': '🐾', 'Cuidado Personal': '🧴', 'Vestimenta': '👕', 'Ahorro': '💰', 'Inversión': '📈', 'Otros': '💸'}
         for budget_item in budget_items:
             if budget_item.category == "_income": continue
             summary[budget_item.category] = { "category": budget_item.category, "allocated": budget_item.allocated_amount, "spent": 0, "icon": icons.get(budget_item.category, '💸')}
@@ -82,17 +78,18 @@ async def get_dashboard_summary(db: AsyncSession = Depends(get_db), user: User =
     except Exception:
         return {"income": 0, "total_spent": 0, "summary": [], "has_completed_onboarding": user.has_completed_onboarding}
 
-# CORRECCIÓN: Se agrega 'async' y se usa la nueva sintaxis para la consulta
 @router.get("/analysis/resilience-summary", response_model=ResilienceSummary)
 async def get_resilience_summary(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     try:
         result_budget = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email))
-        budget_items = result_budget.scalars().all()
+        # CORRECCIÓN: .all() debe ser esperado (awaited)
+        budget_items = await result_budget.scalars().all()
         income = next((item.allocated_amount for item in budget_items if item.category == "_income"), 0)
         today = datetime.utcnow()
         start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         result_expenses = await db.execute(select(Expense).where(Expense.date >= start_of_month, Expense.user_email == user.email))
-        expenses_this_month = result_expenses.scalars().all()
+        # CORRECCIÓN: .all() debe ser esperado (awaited)
+        expenses_this_month = await result_expenses.scalars().all()
         total_spent = sum(expense.amount for expense in expenses_this_month)
         title = "¡Felicitaciones!"
         message = "Tus finanzas están bajo control este mes."
@@ -121,16 +118,15 @@ async def get_resilience_summary(db: AsyncSession = Depends(get_db), user: User 
     except Exception:
         return {"title": "Sin datos", "message": "Aún no tienes suficiente información para un resumen.", "suggestion": "Completa tu presupuesto y registra tus primeros gastos.", "supermarket_spending": 0}
 
-# CORRECCIÓN: Se agrega 'async' y se usa la nueva sintaxis para la consulta
 @router.get("/analysis/monthly-distribution")
 async def get_monthly_distribution(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     today = datetime.utcnow()
     start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     result = await db.execute(select(Expense.category, func.sum(Expense.amount).label('total_spent')).where(Expense.user_email == user.email, Expense.date >= start_of_month).group_by(Expense.category))
-    distribution = result.all()
+    # CORRECCIÓN: .all() debe ser esperado (awaited)
+    distribution = await result.all()
     return [{"name": item.category, "value": item.total_spent} for item in distribution]
 
-# CORRECCIÓN: Se agrega 'async' y se usa la nueva sintaxis para la consulta
 @router.get("/analysis/spending-trend")
 async def get_spending_trend(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     spending_trend = []
@@ -140,21 +136,21 @@ async def get_spending_trend(db: AsyncSession = Depends(get_db), user: User = De
         month_end = month_start.replace(month=month_start.month + 1) if month_start.month < 12 else month_start.replace(year=month_start.year + 1, month=1)
         month_name = month_start.strftime("%b")
         result = await db.execute(select(Expense.category, func.sum(Expense.amount).label('total_spent')).where(Expense.user_email == user.email, Expense.date >= month_start, Expense.date < month_end).group_by(Expense.category).order_by(func.sum(Expense.amount).desc()).limit(5))
-        expenses_in_month = result.all()
+        # CORRECCIÓN: .all() debe ser esperado (awaited)
+        expenses_in_month = await result.all()
         month_data = {"name": month_name}
         for expense in expenses_in_month:
             month_data[expense.category] = expense.total_spent
         spending_trend.append(month_data)
     return spending_trend
 
-# CORRECCIÓN: Se agrega 'async' y se usa la nueva sintaxis para la consulta
 @goals_router.get("/", response_model=List[dict])
 async def get_goals(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     result = await db.execute(select(SavingGoal).where(SavingGoal.user_email == user.email))
-    goals = result.scalars().all()
+    # CORRECCIÓN: .all() debe ser esperado (awaited)
+    goals = await result.scalars().all()
     return [{"id": goal.id, "name": goal.name, "target_amount": goal.target_amount, "current_amount": goal.current_amount} for goal in goals]
 
-# CORRECCIÓN: Se agrega 'async' y se usa la nueva sintaxis para la consulta
 @goals_router.post("/")
 async def create_goal(goal: GoalInput, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     new_goal = SavingGoal(name=goal.name, target_amount=goal.target_amount, user_email=user.email)
@@ -163,17 +159,18 @@ async def create_goal(goal: GoalInput, db: AsyncSession = Depends(get_db), user:
     await db.refresh(new_goal)
     return new_goal
 
-# CORRECCIÓN: Se agrega 'async' y se usa la nueva sintaxis para la consulta
 @goals_router.get("/projection/{goal_id}")
 async def get_goal_projection(goal_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     result_budget = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email, BudgetItem.category == "Ahorro"))
-    ahorro_budget = result_budget.scalars().first()
+    # CORRECCIÓN: .first() debe ser esperado (awaited)
+    ahorro_budget = await result_budget.scalars().first()
     monthly_saving = ahorro_budget.allocated_amount if ahorro_budget else 0
     if monthly_saving <= 0:
         return {"months_remaining": -1, "suggestion": "No tenés un monto asignado para 'Ahorro' en tu presupuesto. ¡Andá al Planificador para agregarlo!"}
     
     result_goal = await db.execute(select(SavingGoal).where(SavingGoal.id == goal_id, SavingGoal.user_email == user.email))
-    goal = result_goal.scalars().first()
+    # CORRECCIÓN: .first() debe ser esperado (awaited)
+    goal = await result_goal.scalars().first()
     
     if not goal:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meta no encontrada")
@@ -186,7 +183,8 @@ async def get_goal_projection(goal_id: int, db: AsyncSession = Depends(get_db), 
     suggestion = f"Si seguís ahorrando ${monthly_saving:,.0f} por mes, vas a alcanzar tu meta en aproximadamente {months_remaining} meses."
     
     result_high_expense = await db.execute(select(Expense.category, func.sum(Expense.amount).label('total')).where(Expense.user_email == user.email, Expense.category.notin_(['Ahorro', 'Inversión'])).group_by(Expense.category).order_by(func.sum(Expense.amount).desc()).limit(1))
-    high_expense_category = result_high_expense.first()
+    # CORRECCIÓN: .first() debe ser esperado (awaited)
+    high_expense_category = await result_high_expense.first()
     
     if high_expense_category:
         cut_amount = high_expense_category.total * 0.10

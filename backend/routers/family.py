@@ -14,13 +14,13 @@ router = APIRouter(
     tags=["Family Plan"]
 )
 
-# CORRECCIÓN: Convertido a async
 @router.get("/latest", response_model=FamilyPlanResponse)
 async def get_latest_family_plan(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     result = await db.execute(
         select(FamilyPlan).filter(FamilyPlan.user_email == user.email).order_by(FamilyPlan.created_at.desc())
     )
-    latest_plan = result.scalars().first()
+    # CORRECCIÓN: .first() debe ser esperado (awaited)
+    latest_plan = await result.scalars().first()
     
     if not latest_plan or not latest_plan.plan_data:
         return None 
@@ -33,7 +33,6 @@ async def get_latest_family_plan(db: AsyncSession = Depends(get_db), user: User 
         leisureSuggestion=LeisureSuggestion(**plan_data.get("leisureSuggestion", {}))
     )
 
-# CORRECCIÓN: Convertido a async
 @router.post("/generate", response_model=FamilyPlanResponse)
 async def generate_family_plan(request: FamilyPlanRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     recipes = [
