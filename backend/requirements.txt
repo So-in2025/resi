@@ -8,5 +8,4 @@ soundfile
 google-cloud-speech
 google-generativeai
 httpx
-aiosqlite
-asyncpg
+psycopg2-binary

@@ -1,7 +1,7 @@
 # En: backend/routers/cultivation.py
 from fastapi import APIRouter, Depends
 import random
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 import json
 
 from database import User, CultivationPlan
@@ -13,9 +13,9 @@ router = APIRouter(
     tags=["Cultivation"]
 )
 
-# CORRECCIÓN: Convertido a async
+# CORRECCIÓN: Convertido a sync
 @router.post("/generate-plan")
-async def generate_cultivation_plan(request: CultivationPlanRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
+def generate_cultivation_plan(request: CultivationPlanRequest, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     tips = ""
     if request.experience == 'principiante':
         tips += "Como estás empezando, nos enfocaremos en cultivos resistentes y de rápido crecimiento. ¡El éxito inicial es clave para la motivación! "
@@ -48,13 +48,13 @@ async def generate_cultivation_plan(request: CultivationPlanRequest, db: AsyncSe
     new_plan = CultivationPlan(user_email=user.email, plan_data=json.dumps(response_plan))
     db.add(new_plan)
     user.last_cultivation_plan = json.dumps(response_plan)
-    await db.commit()
+    db.commit()
 
     return response_plan
 
-# CORRECCIÓN: Convertido a async
+# CORRECCIÓN: Convertido a sync
 @router.post("/chat")
-async def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_create)):
+def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_create)):
     question = request.question.lower()
     response, image_prompt = "", ""
     if "plaga" in question or "bicho" in question:
@@ -71,9 +71,9 @@ async def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_o
         image_prompt = "Icono de un cerebro de IA con signos de pregunta."
     return {"response": response, "imagePrompt": image_prompt}
 
-# CORRECCIÓN: Convertido a async
+# CORRECCIÓN: Convertido a sync
 @router.post("/validate-parameters")
-async def validate_cultivation_parameters(request: ValidateParamsRequest, user: User = Depends(get_user_or_create)):
+def validate_cultivation_parameters(request: ValidateParamsRequest, user: User = Depends(get_user_or_create)):
     is_valid = True
     advice = "¡Tus parámetros están excelentes! Sigue así para un crecimiento óptimo."
     if request.method == 'hydroponics':

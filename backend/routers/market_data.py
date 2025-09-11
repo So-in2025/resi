@@ -1,7 +1,7 @@
 # En: backend/routers/market_data.py
 import httpx
 from fastapi import APIRouter, HTTPException
-from httpx import AsyncClient, ConnectTimeout, ReadTimeout
+from httpx import Client, ConnectTimeout, ReadTimeout
 
 router = APIRouter(
     prefix="/market-data",
@@ -11,14 +11,14 @@ router = APIRouter(
 DOLAR_API_URL = "https://dolarapi.com/v1/dolares"
 
 @router.get("/dolar")
-async def get_dolar_prices():
+def get_dolar_prices():
     """
     Obtiene las cotizaciones del dólar (oficial, blue, mep) desde una API externa.
     """
     try:
-        # CORRECCIÓN: Se añade un timeout a la petición para evitar que el servidor se cuelgue
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(DOLAR_API_URL)
+        # CORRECCIÓN: Se utiliza el cliente síncrono de httpx
+        with httpx.Client(timeout=5.0) as client:
+            response = client.get(DOLAR_API_URL)
             response.raise_for_status()
             
             data = response.json()
@@ -42,7 +42,7 @@ async def get_dolar_prices():
                 }
             }
             
-    # CORRECCIÓN: Se manejan los errores de timeout y de conexión de forma más específica
+    # CORRECCIÓN: Se manejan los errores de timeout y de conexión de forma síncrona
     except (ConnectTimeout, ReadTimeout):
         raise HTTPException(status_code=503, detail="El servicio de cotizaciones tardó demasiado en responder.")
     except httpx.RequestError as exc:

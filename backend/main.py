@@ -8,8 +8,7 @@ from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import speech
 import google.generativeai as genai
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy.orm import Session
 from typing import List
 
 from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement, CultivationPlan
@@ -24,8 +23,9 @@ app = FastAPI(title="Resi API", version="4.5.0")
 speech_client = None
 model_chat = None
 
+# CORRECCIÓN: Evento de inicio síncrono
 @app.on_event("startup")
-async def startup_event():
+def startup_event():
     """
     Esta función se ejecuta una sola vez cuando la aplicación arranca.
     Es el lugar SEGURO para inicializar clientes que hacen llamadas de red.
@@ -33,7 +33,7 @@ async def startup_event():
     global speech_client, model_chat
     
     # 1. Crear tablas de la base de datos
-    await create_db_and_tables()
+    create_db_and_tables()
     
     # 2. Inicializar cliente de Google Speech
     speech_client = speech.SpeechClient()
@@ -97,11 +97,11 @@ app.include_router(gamification.router)
 def read_root():
     return {"status": "ok", "version": "4.0.0"}
 
+# CORRECCIÓN: Función síncrona
 @app.post("/transcribe")
-async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
+def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     try:
-        loop = asyncio.get_event_loop()
-        wav_audio_content = await audio_file.read()
+        wav_audio_content = audio_file.read()
         
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
@@ -111,24 +111,22 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
         )
         audio_source = speech.RecognitionAudio(content=wav_audio_content)
         
-        # Se ejecuta la llamada bloqueante en un hilo separado para no congelar el servidor
-        response = await loop.run_in_executor(
-            None, lambda: speech_client.recognize(config=config, audio=audio_source)
-        )
+        # Se ejecuta la llamada síncrona al cliente de speech
+        response = speech_client.recognize(config=config, audio=audio_source)
         
         transcripts = [result.alternatives[0].transcript for result in response.results]
         if not transcripts:
             raise HTTPException(status_code=400, detail="No se pudo entender el audio.")
             
         full_transcript = " ".join(transcripts)
-        parsed_data = await parse_expense_with_gemini(full_transcript, db, user.email)
+        parsed_data = parse_expense_with_gemini(full_transcript, db, user.email)
         
         if parsed_data:
             new_expense = Expense(user_email=user.email, **parsed_data)
             db.add(new_expense)
-            await db.commit()
-            await db.refresh(new_expense)
-            await award_achievement(user, "first_expense", db)
+            db.commit()
+            db.refresh(new_expense)
+            award_achievement(user, "first_expense", db)
             return {"status": "Gasto registrado con éxito", "data": parsed_data}
         else:
             return {"status": "No se pudo categorizar el gasto", "data": {"description": full_transcript}}
@@ -137,38 +135,40 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
         print(f"Error detallado en la transcripción: {e}")
         raise HTTPException(status_code=400, detail=f"Error en la transcripción: No se pudo procesar el audio.")
 
+# CORRECCIÓN: Función síncrona
 @app.post("/process-text")
-async def process_text(input_data: TextInput, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
-    parsed_data = await parse_expense_with_gemini(input_data.text, db, user.email)
+def process_text(input_data: TextInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    parsed_data = parse_expense_with_gemini(input_data.text, db, user.email)
     if parsed_data:
         new_expense = Expense(user_email=user.email, **parsed_data)
         db.add(new_expense)
-        await db.commit()
-        await db.refresh(new_expense)
-        await award_achievement(user, "first_expense", db)
+        db.commit()
+        db.refresh(new_expense)
+        award_achievement(user, "first_expense", db)
         return {"status": "Gasto registrado con éxito", "data": parsed_data}
     else:
         return {"status": "No se pudo categorizar el gasto", "data": {"description": input_data.text}}
 
+# CORRECCIÓN: Función síncrona
 @app.get("/chat/history", response_model=List[ChatMessageResponse])
-async def get_chat_history(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
-    result = await db.execute(select(ChatMessage).where(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.asc()))
-    history = result.scalars().all()
+def get_chat_history(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    history = db.query(ChatMessage).filter(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.asc()).all()
     return history
 
+# CORRECCIÓN: Función síncrona
 @app.post("/chat")
-async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
+def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     db.add(ChatMessage(user_email=user.email, sender="user", message=request.question))
-    await db.commit()
+    db.commit()
 
     try:
-        dolar_data = await market_data.get_dolar_prices()
+        dolar_data = market_data.get_dolar_prices()
         real_time_context = f"CONTEXTO EN TIEMPO REAL: El Dólar Blue está a ${dolar_data['blue']['venta']} para la venta. El Dólar Oficial está a ${dolar_data['oficial']['venta']}."
     except Exception as e:
         print(f"ALERTA: No se pudo obtener datos del dólar. Causa: {e}")
         real_time_context = "CONTEXTO EN TIEMPO REAL: La cotización del dólar no está disponible en este momento."
 
-    summary_data = await finance.get_dashboard_summary(db=db, user=user)
+    summary_data = finance.get_dashboard_summary(db=db, user=user)
     financial_context = f"Contexto financiero del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."
     risk_profile = user.risk_profile or "no definido"
     long_term_goals = user.long_term_goals or "no definidas"
@@ -185,8 +185,7 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
 
     full_context = f"{real_time_context}\n{financial_context}\n{profile_context}"
 
-    result = await db.execute(select(ChatMessage).where(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.desc()).limit(10))
-    chat_history_db = result.scalars().all()
+    chat_history_db = db.query(ChatMessage).filter(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.desc()).limit(10).all()
     chat_history_db.reverse()
     history_for_ia = [
         {"role": "user", "parts": [full_context]},
@@ -199,36 +198,33 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
     chat = model_chat.start_chat(history=history_for_ia)
     
     try:
-        loop = asyncio.get_event_loop()
-        # Se ejecuta la llamada a la IA en un hilo separado para no bloquear el servidor
-        response_model = await loop.run_in_executor(
-            None, lambda: chat.send_message(request.question)
-        )
+        response_model = chat.send_message(request.question)
         ai_response_text = response_model.text
         db.add(ChatMessage(user_email=user.email, sender="ai", message=ai_response_text))
-        await db.commit()
+        db.commit()
         return {"response": ai_response_text}
     except Exception as e:
         print(f"Error al procesar la solicitud con la IA: {e}")
         raise HTTPException(status_code=500, detail=f"Error al procesar la solicitud con la IA: {e}")
 
+# CORRECCIÓN: Función síncrona
 @app.get("/check-onboarding")
-async def check_onboarding_status(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
+def check_onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     return {"onboarding_completed": user.has_completed_onboarding if user else False}
 
+# CORRECCIÓN: Función síncrona
 @app.post("/onboarding-complete")
-async def onboarding_complete(onboarding_data: OnboardingData, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
+def onboarding_complete(onboarding_data: OnboardingData, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     user.has_completed_onboarding = True
     user.risk_profile = onboarding_data.risk_profile
     user.long_term_goals = onboarding_data.long_term_goals
     
-    result = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email, BudgetItem.category == "_income"))
-    income_item = result.scalars().first()
+    income_item = db.query(BudgetItem).filter(BudgetItem.user_email == user.email, BudgetItem.category == "_income").first()
     if income_item:
         income_item.allocated_amount = onboarding_data.income
     else:
         db.add(BudgetItem(category="_income", allocated_amount=onboarding_data.income, user_email=user.email))
     
-    await db.commit()
+    db.commit()
     
     return {"status": "Información guardada con éxito"}

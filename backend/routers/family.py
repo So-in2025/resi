@@ -1,7 +1,6 @@
 # En: backend/routers/family.py
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy.orm import Session
 import json
 import random
 
@@ -15,12 +14,8 @@ router = APIRouter(
 )
 
 @router.get("/latest", response_model=FamilyPlanResponse)
-async def get_latest_family_plan(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
-    result = await db.execute(
-        select(FamilyPlan).filter(FamilyPlan.user_email == user.email).order_by(FamilyPlan.created_at.desc())
-    )
-    # CORRECCIÓN: .first() debe ser esperado (awaited)
-    latest_plan = await result.scalars().first()
+def get_latest_family_plan(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    latest_plan = db.query(FamilyPlan).filter(FamilyPlan.user_email == user.email).order_by(FamilyPlan.created_at.desc()).first()
     
     if not latest_plan or not latest_plan.plan_data:
         return None 
@@ -34,7 +29,7 @@ async def get_latest_family_plan(db: AsyncSession = Depends(get_db), user: User 
     )
 
 @router.post("/generate", response_model=FamilyPlanResponse)
-async def generate_family_plan(request: FamilyPlanRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
+def generate_family_plan(request: FamilyPlanRequest, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     recipes = [
         {"meal": "Guiso de Lentejas Power", "tags": ["económico", "rinde mucho"]},
         {"meal": "Tarta de Espinaca y Ricota", "tags": ["vegetariano", "fácil"]},
@@ -88,6 +83,6 @@ async def generate_family_plan(request: FamilyPlanRequest, db: AsyncSession = De
     
     user.last_family_plan = response_data.json()
     
-    await db.commit()
+    db.commit()
 
     return response_data

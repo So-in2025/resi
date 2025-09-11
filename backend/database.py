@@ -1,29 +1,22 @@
 # En: backend/database.py
 import os
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, relationship
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from datetime import datetime
 import json
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL is None:
-    DATABASE_URL = "sqlite+aiosqlite:///./resi.db"
-    engine = create_async_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    DATABASE_URL = "sqlite:///./resi.db"
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    if DATABASE_URL.startswith("postgresql://"):
-        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-    
     print(f"DEBUG: Conectando con URL: {DATABASE_URL}")
-
-    engine = create_async_engine(DATABASE_URL)
+    engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(
     autocommit=False, 
     autoflush=False, 
-    bind=engine, 
-    class_=AsyncSession
+    bind=engine
 )
 Base = declarative_base()
 
@@ -132,6 +125,5 @@ class UserAchievement(Base):
     owner = relationship("User", back_populates="user_achievements")
     achievement_ref = relationship("Achievement")
 
-async def create_db_and_tables():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+def create_db_and_tables():
+    Base.metadata.create_all(bind=engine)

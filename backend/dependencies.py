@@ -1,23 +1,22 @@
 # En: backend/dependencies.py
 from fastapi import Depends, HTTPException, Header, status, Request
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from typing import Optional, List
 import json
 import textwrap
 import google.generativeai as genai
-from sqlalchemy.future import select
 from sqlalchemy import func
 from datetime import datetime
 
 from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
 from schemas import ExpenseData, GoalInput, BudgetInput
 
-async def get_db():
+def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
-        await db.close()
+        db.close()
 
 def get_current_user_email(request: Request, authorization: Optional[str] = Header(None)):
     if request.method == "OPTIONS": return None
@@ -25,50 +24,46 @@ def get_current_user_email(request: Request, authorization: Optional[str] = Head
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de autorización faltante o inválido.")
     return authorization.split(" ")[1]
 
-async def get_user_or_create(user_email: str = Depends(get_current_user_email), db: AsyncSession = Depends(get_db)):
+def get_user_or_create(user_email: str = Depends(get_current_user_email), db: Session = Depends(get_db)):
     if user_email is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No se pudo verificar el email del usuario.")
     
-    result = await db.execute(select(User).where(User.email == user_email))
-    user = result.scalars().first()
+    user = db.query(User).filter(User.email == user_email).first()
     
     if not user:
         new_user = User(email=user_email, has_completed_onboarding=False)
         db.add(new_user)
         new_profile = GameProfile(user_email=user_email)
         db.add(new_profile)
-        await db.commit()
-        await db.refresh(new_user)
+        db.commit()
+        db.refresh(new_user)
         return new_user
     return user
 
-async def award_achievement(user: User, achievement_id: str, db: AsyncSession, progress_to_add: int = 1):
+def award_achievement(user: User, achievement_id: str, db: Session, progress_to_add: int = 1):
     """
     Función para otorgar y actualizar el progreso de un logro.
     Devuelve un mensaje si el logro fue desbloqueado.
     """
-    result = await db.execute(select(Achievement).where(Achievement.id == achievement_id))
-    achievement = result.scalars().first()
+    achievement = db.query(Achievement).filter(Achievement.id == achievement_id).first()
     if not achievement:
         print(f"Advertencia: Logro '{achievement_id}' no encontrado en la base de datos.")
         return None
 
-    result_user_achiev = await db.execute(
-        select(UserAchievement)
-        .filter(UserAchievement.user_email == user.email, UserAchievement.achievement_id == achievement_id)
-    )
-    user_achiev = result_user_achiev.scalars().first()
+    user_achiev = db.query(UserAchievement).filter(
+        UserAchievement.user_email == user.email,
+        UserAchievement.achievement_id == achievement_id
+    ).first()
 
     if not user_achiev:
         user_achiev = UserAchievement(user_email=user.email, achievement_id=achievement_id)
         db.add(user_achiev)
-        await db.flush()
+        db.flush()
 
     if not user_achiev.is_completed:
         user_achiev.progress += progress_to_add
         
-        result_profile = await db.execute(select(GameProfile).filter(GameProfile.user_email == user.email))
-        profile = result_profile.scalars().first()
+        profile = db.query(GameProfile).filter(GameProfile.user_email == user.email).first()
 
         if user_achiev.progress >= achievement.points:
             user_achiev.is_completed = True
@@ -84,16 +79,15 @@ async def award_achievement(user: User, achievement_id: str, db: AsyncSession, p
                 profile.resi_score += achievement.points * 2
                 profile.resilient_coins += achievement.points * 5
 
-            await db.commit()
+            db.commit()
             return f"¡Logro desbloqueado: '{achievement.name}'!"
     
-    await db.commit()
+    db.commit()
     return None
 
-async def parse_expense_with_gemini(text: str, db: AsyncSession, user_email: str) -> Optional[dict]:
-    result = await db.execute(select(BudgetItem.category).filter(BudgetItem.user_email == user_email, BudgetItem.category != "_income"))
-    budget_items = result.scalars().all()
-    user_categories = [item for item in budget_items]
+def parse_expense_with_gemini(text: str, db: Session, user_email: str) -> Optional[dict]:
+    budget_items = db.query(BudgetItem.category).filter(BudgetItem.user_email == user_email, BudgetItem.category != "_income").all()
+    user_categories = [item[0] for item in budget_items]
     valid_categories = list(set([
         "Vivienda", "Servicios Básicos", "Supermercado", "Kioscos", "Transporte", "Salud",
         "Deudas", "Préstamos", "Entretenimiento", "Hijos", "Mascotas", "Cuidado Personal",
@@ -122,7 +116,7 @@ async def parse_expense_with_gemini(text: str, db: AsyncSession, user_email: str
     )
     
     try:
-        response = await model_expense.generate_content_async(f"Analiza esta frase: '{text}'")
+        response = model_expense.generate_content(f"Analiza esta frase: '{text}'")
         parsed_json = json.loads(response.text)
 
         expense_data = {

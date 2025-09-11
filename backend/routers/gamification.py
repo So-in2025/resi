@@ -1,10 +1,8 @@
 # En: backend/routers/gamification.py
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
 from typing import List, Optional
-from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
 
 from database import User, GameProfile, Achievement, UserAchievement
 from schemas import GameProfileResponse, UserAchievementSchema, AchievementSchema
@@ -45,17 +43,11 @@ class GameProfileResponse(BaseModel):
         from_attributes = True
 
 @router.get("/", response_model=GameProfileResponse)
-async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(User)
-        .options(
-            selectinload(User.game_profile),
-            selectinload(User.user_achievements).selectinload(UserAchievement.achievement_ref)
-        )
-        .filter(User.email == user.email)
-    )
-    # CORRECCIÓN DEFINITIVA: Se eliminó el await incorrecto que causaba el error.
-    user_with_data = result.scalars().first()
+def get_game_profile(user: User = Depends(get_user_or_create), db: Session = Depends(get_db)):
+    user_with_data = db.query(User).options(
+        joinedload(User.game_profile),
+        joinedload(User.user_achievements).joinedload(UserAchievement.achievement_ref)
+    ).filter(User.email == user.email).first()
 
     if not user_with_data:
         raise HTTPException(status_code=404, detail="User not found while fetching game profile")
@@ -64,8 +56,8 @@ async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSe
         # Si el usuario es nuevo y no tiene perfil, se crea uno.
         new_profile = GameProfile(user_email=user.email)
         db.add(new_profile)
-        await db.commit()
-        await db.refresh(new_profile)
+        db.commit()
+        db.refresh(new_profile)
         user_with_data.game_profile = new_profile
 
     profile = user_with_data.game_profile
@@ -90,15 +82,13 @@ async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSe
     )
 
 @router.post("/earn-coins")
-async def earn_coins(coins_to_add: int, user: User = Depends(get_user_or_create), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(GameProfile).filter(GameProfile.user_email == user.email))
-    # CORRECCIÓN DEFINITIVA: Se eliminó el await incorrecto.
-    profile = result.scalars().first()
+def earn_coins(coins_to_add: int, user: User = Depends(get_user_or_create), db: Session = Depends(get_db)):
+    profile = db.query(GameProfile).filter(GameProfile.user_email == user.email).first()
     
     if profile:
         profile.resilient_coins += coins_to_add
         profile.resi_score += coins_to_add * 2
-        await db.commit()
-        await db.refresh(profile)
+        db.commit()
+        db.refresh(profile)
         return {"message": f"Ganaste {coins_to_add} monedas y tu ResiScore aumentó."}
     return {"message": "Perfil de juego no encontrado."}
