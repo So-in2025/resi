@@ -46,9 +46,10 @@ class GameProfileResponse(BaseModel):
 
 # --- ENDPOINTS REALES CON CONSULTAS A LA BASE DE DATOS ---
 
+# CORRECCIÓN: La función ahora es asíncrona (async def)
 @router.get("/", response_model=GameProfileResponse)
 async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSession = Depends(get_db)):
-    # CORRECCIÓN: La consulta debe comenzar desde el modelo 'User' para acceder a los logros.
+    # Ejecutamos una consulta para obtener el usuario junto con su perfil de juego y logros
     result = await db.execute(
         select(User)
         .options(
@@ -59,16 +60,18 @@ async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSe
     )
     user_with_data = result.scalars().first()
 
-    # Si el usuario no tiene un GameProfile, crearlo
+    # Si por alguna razón no tiene perfil de juego, se lo creamos
     if not user_with_data.game_profile:
         new_profile = GameProfile(user_email=user_with_data.email)
         db.add(new_profile)
         await db.commit()
-        await db.refresh(user_with_data)
+        # Es crucial recargar el perfil en la sesión después de crearlo
+        await db.refresh(new_profile)
+        user_with_data.game_profile = new_profile
 
     profile = user_with_data.game_profile
 
-    # Creamos la lista de logros para la respuesta
+    # Mapeamos los logros a su schema de respuesta
     achievements_list = [
         UserAchievementSchema(
             achievement=AchievementSchema.from_orm(ua.achievement_ref),
@@ -88,10 +91,9 @@ async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSe
         achievements=achievements_list
     )
 
-
+# CORRECCIÓN: La función ahora es asíncrona (async def)
 @router.post("/earn-coins")
 async def earn_coins(coins_to_add: int, user: User = Depends(get_user_or_create), db: AsyncSession = Depends(get_db)):
-    # CORRECCIÓN: Se reemplaza db.query por await db.execute(select(...))
     result = await db.execute(select(GameProfile).filter(GameProfile.user_email == user.email))
     profile = result.scalars().first()
     
