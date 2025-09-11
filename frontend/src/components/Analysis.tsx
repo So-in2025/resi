@@ -1,10 +1,11 @@
+// En: frontend/src/components/Analysis.tsx
 'use client';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useSession } from 'next-auth/react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import SectionHeader from '@/components/SectionHeader';
 import InfoTooltip from '@/components/InfoTooltip';
+import apiClient from '@/lib/apiClient'; // CORRECCIÓN: Se importa el apiClient
 
 interface PieData { name: string; value: number; }
 interface BarData { name: string; [key: string]: string | number; }
@@ -22,14 +23,14 @@ export default function Analysis() {
       const fetchData = async () => {
         setIsLoading(true);
         try {
-          const axiosAuth = axios.create({ headers: { 'Authorization': `Bearer ${session.user?.email}` } });
+          // CORRECCIÓN: Se utiliza apiClient en lugar de axios con URL completa
           const [pieRes, barRes] = await Promise.all([
-            axiosAuth.get('https://resi-vn4v.onrender.com/finance/analysis/monthly-distribution'),
-            axiosAuth.get('https://resi-vn4v.onrender.com/finance/analysis/spending-trend')
+            apiClient.get('/finance/analysis/monthly-distribution'),
+            apiClient.get('/finance/analysis/spending-trend')
           ]);
           setPieData(pieRes.data);
           setBarData(barRes.data);
-        } catch (error) { console.error("Error al cargar datos de análisis:", error); } 
+        } catch (error) { console.error("Error al cargar datos de análisis:", error); }
         finally { setIsLoading(false); }
       };
       fetchData();

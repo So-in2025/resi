@@ -2,11 +2,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import { FaPlus, FaSave, FaTrashAlt } from 'react-icons/fa';
 import SectionHeader from './SectionHeader';
+import apiClient from '@/lib/apiClient'; // CORRECCIÓN: Se importa el apiClient
 
 interface BudgetItem {
     category: string;
@@ -50,7 +50,7 @@ const StepperButton = ({ amount, onUpdate }: { amount: number, onUpdate: (amount
             let step = amount > 0 ? 100 : -100;
             intervalRef.current = setInterval(() => {
                 onUpdate(step);
-                if (Math.abs(step) < 1000) { step = amount > 0 ? 1000 : -1000; } 
+                if (Math.abs(step) < 1000) { step = amount > 0 ? 1000 : -1000; }
                 else { step = amount > 0 ? 10000 : -10000; }
             }, 100);
         }, 300);
@@ -74,7 +74,7 @@ export default function Planner({ budgetData, onBudgetUpdate }: PlannerProps) {
     const [income, setIncome] = useState<number>(0);
     const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
     const [newCategory, setNewCategory] = useState('');
-    
+
     useEffect(() => {
         if (budgetData) {
             setIncome(budgetData.income);
@@ -97,14 +97,14 @@ export default function Planner({ budgetData, onBudgetUpdate }: PlannerProps) {
     }, [budgetData]);
 
     const handleUpdateAmount = (category: string, increment: number) => {
-        setBudgetItems(prevItems => prevItems.map(item => 
+        setBudgetItems(prevItems => prevItems.map(item =>
             item.category === category ? { ...item, allocated_amount: Math.max(0, item.allocated_amount + increment) } : item
         ));
     };
 
     const handleManualChange = (category: string, value: string) => {
         const newAmount = value === '' ? 0 : parseFloat(value);
-        setBudgetItems(prevItems => prevItems.map(item => 
+        setBudgetItems(prevItems => prevItems.map(item =>
             item.category === category ? { ...item, allocated_amount: isNaN(newAmount) ? 0 : newAmount } : item
         ));
     };
@@ -128,7 +128,8 @@ export default function Planner({ budgetData, onBudgetUpdate }: PlannerProps) {
         }
         const toastId = toast.loading("Guardando planificación...");
         try {
-            await axios.post('https://resi-vn4v.onrender.com/finance/budget',
+            // CORRECCIÓN: Se utiliza apiClient en lugar de axios con URL completa
+            await apiClient.post('/finance/budget',
                 { income, items: budgetItems },
                 { headers: { 'Authorization': `Bearer ${session.user.email}` } }
             );
@@ -139,7 +140,7 @@ export default function Planner({ budgetData, onBudgetUpdate }: PlannerProps) {
             console.error("Error al guardar la planificación:", error);
         }
     };
-    
+
     return (
       <div className="w-full">
         <SectionHeader title="Planificador de Presupuesto" subtitle="Acá le decís a tu dinero a dónde ir. Un buen plan es el primer paso." />
