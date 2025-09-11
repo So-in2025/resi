@@ -141,7 +141,7 @@ export default function GamificationModule() {
     }
     
     const maxResiScore = 1000;
-    const { financial_points, cultivation_points, community_points, resilient_coins, resi_score, achievements } = profile!;
+    const { financial_points, cultivation_points, community_points, resilient_coins, resi_score } = profile!;
     
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -153,8 +153,8 @@ export default function GamificationModule() {
         }
     };
 
-    const completedAchievements = achievements.filter(a => a.is_completed);
-    const inProgressAchievements = achievements.filter(a => !a.is_completed);
+    const completedAchievements = profile!.achievements.filter(a => a.is_completed);
+    const inProgressAchievements = profile!.achievements.filter(a => !a.is_completed);
 
     return (
         <motion.div initial="hidden" animate="visible" variants={containerVariants} className="space-y-12">

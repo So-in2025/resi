@@ -1,10 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { useSession } from 'next-auth/react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import SectionHeader from '@/components/SectionHeader';
 import InfoTooltip from '@/components/InfoTooltip';
-import apiClient from '@/lib/apiClient'; // IMPORTANTE: Usar apiClient
 
 interface PieData { name: string; value: number; }
 interface BarData { name: string; [key: string]: string | number; }
@@ -22,11 +22,10 @@ export default function Analysis() {
       const fetchData = async () => {
         setIsLoading(true);
         try {
-          // CORRECCIÓN: Usar apiClient en lugar de axios con URLs fijas.
-          const apiHeaders = { headers: { 'Authorization': `Bearer ${session.user?.email}` } };
+          const axiosAuth = axios.create({ headers: { 'Authorization': `Bearer ${session.user?.email}` } });
           const [pieRes, barRes] = await Promise.all([
-            apiClient.get('/finance/analysis/monthly-distribution', apiHeaders),
-            apiClient.get('/finance/analysis/spending-trend', apiHeaders)
+            axiosAuth.get('https://resi-vn4v.onrender.com/finance/analysis/monthly-distribution'),
+            axiosAuth.get('https://resi-vn4v.onrender.com/finance/analysis/spending-trend')
           ]);
           setPieData(pieRes.data);
           setBarData(barRes.data);
