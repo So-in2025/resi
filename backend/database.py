@@ -12,8 +12,8 @@ if DATABASE_URL is None:
     DATABASE_URL = "sqlite+aiosqlite:///./resi.db"
     engine = create_async_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+    if DATABASE_URL.startswith("postgresql://"):
+        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
     
     # --- LÍNEA AGREGADA PARA DEPURACIÓN ---
     print(f"DEBUG: Conectando con URL: {DATABASE_URL}")
