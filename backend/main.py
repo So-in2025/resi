@@ -3,6 +3,7 @@ import os
 import io
 import textwrap
 import json
+import asyncio
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import speech
@@ -85,7 +86,9 @@ def read_root():
 @app.post("/transcribe")
 async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     try:
+        loop = asyncio.get_event_loop()
         wav_audio_content = await audio_file.read()
+        
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
             sample_rate_hertz=44100,
@@ -93,12 +96,19 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
             audio_channel_count=1
         )
         audio_source = speech.RecognitionAudio(content=wav_audio_content)
-        response = speech_client.recognize(config=config, audio=audio_source)
+        
+        # CORRECCIÓN DEFINITIVA: Ejecutar la llamada bloqueante en un hilo separado
+        response = await loop.run_in_executor(
+            None, lambda: speech_client.recognize(config=config, audio=audio_source)
+        )
+        
         transcripts = [result.alternatives[0].transcript for result in response.results]
         if not transcripts:
             raise HTTPException(status_code=400, detail="No se pudo entender el audio.")
+            
         full_transcript = " ".join(transcripts)
         parsed_data = await parse_expense_with_gemini(full_transcript, db, user.email)
+        
         if parsed_data:
             new_expense = Expense(user_email=user.email, **parsed_data)
             db.add(new_expense)
@@ -108,6 +118,7 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
             return {"status": "Gasto registrado con éxito", "data": parsed_data}
         else:
             return {"status": "No se pudo categorizar el gasto", "data": {"description": full_transcript}}
+            
     except Exception as e:
         print(f"Error detallado en la transcripción: {e}")
         raise HTTPException(status_code=400, detail=f"Error en la transcripción: No se pudo procesar el audio.")
