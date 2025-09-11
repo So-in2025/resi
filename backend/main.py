@@ -9,11 +9,13 @@ from google.cloud import speech
 import google.generativeai as genai
 # CORRECCIÓN: Se cambia la importación de Session por AsyncSession
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select # NUEVO
 from typing import List
 
 # --- Importaciones de nuestros nuevos módulos ---
 from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
+# CORRECCIÓN: get_user_or_create ahora es async, así que lo importamos
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini
 from routers import finance, cultivation, family, market_data, gamification
 

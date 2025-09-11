@@ -91,6 +91,7 @@ async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSe
 
 @router.post("/earn-coins")
 async def earn_coins(coins_to_add: int, user: User = Depends(get_user_or_create), db: AsyncSession = Depends(get_db)):
+    # CORRECCIÓN: Se reemplaza db.query por await db.execute(select(...))
     result = await db.execute(select(GameProfile).filter(GameProfile.user_email == user.email))
     profile = result.scalars().first()
     

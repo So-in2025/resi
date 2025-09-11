@@ -6,7 +6,7 @@ from typing import Optional
 import json
 import textwrap
 import google.generativeai as genai
-from sqlalchemy.future import select # <-- NUEVO: Importa el select asíncrono
+from sqlalchemy.future import select
 
 # CORRECCIÓN: Las importaciones ahora son absolutas desde la raíz del 'backend'.
 from database import SessionLocal, User, BudgetItem
@@ -17,7 +17,7 @@ async def get_db():
     try:
         yield db
     finally:
-        await db.close() # CORRECCIÓN: Se usa 'await' para cerrar la sesión
+        await db.close()
 
 def get_current_user_email(request: Request, authorization: Optional[str] = Header(None)):
     if request.method == "OPTIONS": return None
