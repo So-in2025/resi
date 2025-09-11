@@ -4,7 +4,7 @@ import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text
 from datetime import datetime
 import json
 
@@ -30,16 +30,19 @@ class User(Base):
     __tablename__ = "users"
     email = Column(String, primary_key=True, index=True)
     has_completed_onboarding = Column(Boolean, default=False)
+    # NUEVO: Para el módulo de monetización premium
+    is_premium = Column(Boolean, default=False)
     
-    # --- Nuevos campos para hiper-personalización ---
-    risk_profile = Column(String, nullable=True) # Ej: "Conservador", "Moderado", "Audaz"
-    long_term_goals = Column(Text, nullable=True) # Almacenará un JSON o texto con metas
+    # --- Campos de tu proyecto original ---
+    risk_profile = Column(String, nullable=True)
+    long_term_goals = Column(Text, nullable=True)
     
+    # --- Relaciones de tu proyecto original ---
     expenses = relationship("Expense", back_populates="owner")
     budget_items = relationship("BudgetItem", back_populates="owner")
     saving_goals = relationship("SavingGoal", back_populates="owner")
     chat_messages = relationship("ChatMessage", back_populates="owner")
-    family_plans = relationship("FamilyPlan", back_populates="owner") # Relación con planes familiares
+    family_plans = relationship("FamilyPlan", back_populates="owner")
     
     # --- NUEVAS RELACIONES para el Módulo 5 ---
     game_profile = relationship("GameProfile", back_populates="owner", uselist=False)
@@ -82,7 +85,6 @@ class ChatMessage(Base):
     user_email = Column(String, ForeignKey("users.email"))
     owner = relationship("User", back_populates="chat_messages")
 
-# --- NUEVO MODELO PARA GUARDAR PLANES FAMILIARES ---
 class FamilyPlan(Base):
     __tablename__ = "family_plans"
     id = Column(Integer, primary_key=True, index=True)
