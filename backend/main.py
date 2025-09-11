@@ -20,7 +20,7 @@ from routers import finance, cultivation, family, market_data, gamification
 app = FastAPI(title="Resi API", version="4.0.0")
 
 # --- Variables Globales para los Clientes ---
-# Se declaran aquí pero se inicializarán de forma segura en el evento startup.
+# Se declaran aquí como None. Se inicializarán de forma segura en el evento startup.
 speech_client = None
 model_chat = None
 
@@ -107,7 +107,6 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
         )
         audio_source = speech.RecognitionAudio(content=wav_audio_content)
         
-        # Ejecuta la llamada bloqueante en un hilo separado
         response = await loop.run_in_executor(
             None, lambda: speech_client.recognize(config=config, audio=audio_source)
         )
@@ -196,7 +195,6 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
     
     try:
         loop = asyncio.get_event_loop()
-        # Se ejecuta la llamada a la IA en un hilo separado para no bloquear el servidor
         response_model = await loop.run_in_executor(
             None, lambda: chat.send_message(request.question)
         )
