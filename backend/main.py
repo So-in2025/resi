@@ -104,7 +104,6 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
             db.add(new_expense)
             await db.commit()
             await db.refresh(new_expense)
-            # NUEVO: Lógica de gamificación para audio
             await award_achievement(user, "first_expense", db)
             return {"status": "Gasto registrado con éxito", "data": parsed_data}
         else:
@@ -121,7 +120,6 @@ async def process_text(input_data: TextInput, db: AsyncSession = Depends(get_db)
         db.add(new_expense)
         await db.commit()
         await db.refresh(new_expense)
-        # NUEVO: Lógica de gamificación para texto
         await award_achievement(user, "first_expense", db)
         return {"status": "Gasto registrado con éxito", "data": parsed_data}
     else:
@@ -138,15 +136,12 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
     db.add(ChatMessage(user_email=user.email, sender="user", message=request.question))
     await db.commit()
 
-    # --- INICIO DE LA CORRECCIÓN ---
     try:
         dolar_data = await market_data.get_dolar_prices()
         real_time_context = f"CONTEXTO EN TIEMPO REAL: El Dólar Blue está a ${dolar_data['blue']['venta']} para la venta. El Dólar Oficial está a ${dolar_data['oficial']['venta']}."
     except Exception as e:
-        # Si la API de dólar falla, informamos al log y continuamos sin ese dato.
         print(f"ALERTA: No se pudo obtener datos del dólar. Causa: {e}")
         real_time_context = "CONTEXTO EN TIEMPO REAL: La cotización del dólar no está disponible en este momento."
-    # --- FIN DE LA CORRECCIÓN ---
 
     summary_data = await finance.get_dashboard_summary(db=db, user=user)
     financial_context = f"Contexto financiero del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."

@@ -1,11 +1,12 @@
 # En: backend/routers/cultivation.py
 from fastapi import APIRouter, Depends
 import random
+from sqlalchemy.ext.asyncio import AsyncSession
+import json
 
-# CORRECCIÓN: Importamos de forma absoluta desde la raíz del 'backend'.
-from database import User
+from database import User, CultivationPlan
 from schemas import CultivationPlanRequest, AIChatInput, ValidateParamsRequest
-from dependencies import get_user_or_create
+from dependencies import get_db, get_user_or_create
 
 router = APIRouter(
     prefix="/cultivation",
@@ -13,9 +14,8 @@ router = APIRouter(
 )
 
 @router.post("/generate-plan")
-def generate_cultivation_plan(request: CultivationPlanRequest, user: User = Depends(get_user_or_create)):
-    # ... (lógica sin cambios)
-    crop, system, materials, tips = "", "", "", ""
+async def generate_cultivation_plan(request: CultivationPlanRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
+    tips = ""
     if request.experience == 'principiante':
         tips += "Como estás empezando, nos enfocaremos en cultivos resistentes y de rápido crecimiento. ¡El éxito inicial es clave para la motivación! "
         if request.initialBudget < 15000:
@@ -31,21 +31,29 @@ def generate_cultivation_plan(request: CultivationPlanRequest, user: User = Depe
         system = "Sistema NFT vertical para optimizar espacio" if request.method == 'hydroponics' else "Huerto en tierra con sistema de riego por goteo"
         materials = "Estructura vertical, bomba de mayor caudal, medidores de pH/EC digitales, abonos orgánicos específicos."
         crop = "Pimientos, Tomates premium, Pepinos"
+
     if request.location in ['mendoza', 'cordoba']:
         tips += f"En {request.location.capitalize()}, el sol es fuerte. Asegurá una media sombra para las horas de mayor insolación en verano."
     else:
         tips += f"En {request.location.capitalize()}, la humedad puede ser un factor. Garantizá una buena ventilación para prevenir la aparición de hongos."
+    
     response_plan = {
         "crop": crop, "system": system, "materials": materials,
         "projectedSavings": f"Con este plan, podrías ahorrar un estimado de ${random.randint(5000, 15000):,} al mes en la verdulería.",
         "tips": tips,
         "imagePrompt": f"Diseño de un {system} con {crop} para un usuario {request.experience} en {request.location}"
     }
+
+    # Guardar el plan en la base de datos
+    new_plan = CultivationPlan(user_email=user.email, plan_data=json.dumps(response_plan))
+    db.add(new_plan)
+    user.last_cultivation_plan = json.dumps(response_plan)
+    await db.commit()
+
     return response_plan
 
 @router.post("/chat")
-def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_create)):
-    # ... (lógica sin cambios)
+async def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_create)):
     question = request.question.lower()
     response, image_prompt = "", ""
     if "plaga" in question or "bicho" in question:
@@ -63,8 +71,7 @@ def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_crea
     return {"response": response, "imagePrompt": image_prompt}
 
 @router.post("/validate-parameters")
-def validate_cultivation_parameters(request: ValidateParamsRequest, user: User = Depends(get_user_or_create)):
-    # ... (lógica sin cambios)
+async def validate_cultivation_parameters(request: ValidateParamsRequest, user: User = Depends(get_user_or_create)):
     is_valid = True
     advice = "¡Tus parámetros están excelentes! Sigue así para un crecimiento óptimo."
     if request.method == 'hydroponics':
