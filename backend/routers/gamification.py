@@ -2,11 +2,11 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
-from typing import List
-# NUEVO: Importamos la función 'select' para consultas asíncronas
+from typing import List, Optional
+# CORRECCIÓN: Importamos la función 'select' para consultas asíncronas
 from sqlalchemy.future import select
-# NUEVO: Importamos el objeto 'aliased' para las relaciones
-from sqlalchemy.orm import aliased, selectinload
+# CORRECCIÓN: Importamos el objeto 'aliased' para las relaciones
+from sqlalchemy.orm import selectinload
 
 # Importaciones del proyecto
 from database import User, GameProfile, Achievement, UserAchievement
@@ -17,13 +17,13 @@ router = APIRouter(
     tags=["Gamification"]
 )
 
-# --- NUEVOS SCHEMAS DE RESPUESTA, ajustados para la base de datos real ---
+# --- SCHEMAS DE RESPUESTA, ajustados para la base de datos real ---
 
 class AchievementSchema(BaseModel):
     id: str
     name: str
     description: str
-    icon: str
+    icon: Optional[str] = None
     points: int
     type: str
     
@@ -31,7 +31,7 @@ class UserAchievementSchema(BaseModel):
     achievement: AchievementSchema
     progress: int
     is_completed: bool
-    completion_date: str | None
+    completion_date: Optional[str] = None
 
 class GameProfileResponse(BaseModel):
     resi_score: int
@@ -48,35 +48,45 @@ class GameProfileResponse(BaseModel):
 
 @router.get("/", response_model=GameProfileResponse)
 async def get_game_profile(user: User = Depends(get_user_or_create), db: AsyncSession = Depends(get_db)):
-    # CORRECCIÓN: Usamos 'select' con 'selectinload' para cargar los logros
-    # Esto es más eficiente que hacer múltiples consultas
+    # CORRECCIÓN: La consulta debe comenzar desde el modelo 'User' para acceder a los logros.
     result = await db.execute(
-        select(GameProfile)
-        .options(selectinload(GameProfile.user_achievements).selectinload(UserAchievement.achievement_ref))
-        .filter(GameProfile.user_email == user.email)
+        select(User)
+        .options(
+            selectinload(User.game_profile),
+            selectinload(User.user_achievements).selectinload(UserAchievement.achievement_ref)
+        )
+        .filter(User.email == user.email)
     )
-    profile = result.scalars().first()
+    user_with_data = result.scalars().first()
 
-    if not profile:
-        # Crea un perfil por defecto si no existe
-        profile = GameProfile(user_email=user.email)
-        db.add(profile)
+    # Si el usuario no tiene un GameProfile, crearlo
+    if not user_with_data.game_profile:
+        new_profile = GameProfile(user_email=user_with_data.email)
+        db.add(new_profile)
         await db.commit()
-        await db.refresh(profile)
-    
-    # Creamos un diccionario para el esquema de respuesta
-    response_data = profile.dict()
-    response_data['achievements'] = [
+        await db.refresh(user_with_data)
+
+    profile = user_with_data.game_profile
+
+    # Creamos la lista de logros para la respuesta
+    achievements_list = [
         UserAchievementSchema(
             achievement=AchievementSchema.from_orm(ua.achievement_ref),
             progress=ua.progress,
             is_completed=ua.is_completed,
             completion_date=ua.completion_date.isoformat() if ua.completion_date else None
         )
-        for ua in profile.user_achievements
+        for ua in user_with_data.user_achievements
     ]
 
-    return GameProfileResponse(**response_data)
+    return GameProfileResponse(
+        resi_score=profile.resi_score,
+        resilient_coins=profile.resilient_coins,
+        financial_points=profile.financial_points,
+        cultivation_points=profile.cultivation_points,
+        community_points=profile.community_points,
+        achievements=achievements_list
+    )
 
 
 @router.post("/earn-coins")
