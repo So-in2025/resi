@@ -42,7 +42,7 @@ export default function FamilyPlannerModule() {
     const fetchLatestPlan = async () => {
         if (session?.user?.email) {
             try {
-                const response = await apiClient.get('/family-plan/latest', {
+                const response = await apiClient.get('/family/latest', {
                     headers: { 'Authorization': `Bearer ${session.user.email}` }
                 });
                 if (response.data) {
@@ -94,7 +94,7 @@ export default function FamilyPlannerModule() {
     };
 
     try {
-      const response = await apiClient.post('/family-plan/generate', planRequest, {
+      const response = await apiClient.post('/family/generate', planRequest, {
         headers: { 'Authorization': `Bearer ${session.user.email}` }
       });
       setAiPlan(response.data);
@@ -151,4 +151,3 @@ export default function FamilyPlannerModule() {
     </div>
   );
 }
-

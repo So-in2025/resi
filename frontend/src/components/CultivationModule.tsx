@@ -8,9 +8,7 @@ import {
   FaCheckCircle, FaExclamationCircle, FaDollarSign, FaBoxes, FaLeaf, FaMicrochip, FaDownload, FaImage, FaTrashAlt, FaSun, FaLightbulb, FaSmile, FaMapMarkerAlt
 } from "react-icons/fa";
 import toast from 'react-hot-toast';
-import apiClient from '@/lib/apiClient'; // CORRECCIÓN: Se importa el apiClient
-
-// --- TIPOS Y COMPONENTES INTERNOS ---
+import apiClient from '@/lib/apiClient';
 
 interface TabButtonProps {
     isActive: boolean;
@@ -54,7 +52,7 @@ interface ChatResponse {
     imagePrompt?: string;
 }
 
-const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModuleProps) => {
+export default function CultivationModule({ initialMethod, userFinancialData }: CultivationModuleProps) {
   const { data: session, status } = useSession();
   const [method, setMethod] = useState(initialMethod);
   const [activeTab, setActiveTab] = useState('planificacion');
@@ -109,7 +107,6 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     };
 
     try {
-        // CORRECCIÓN: Se utiliza apiClient en lugar de axios con URL completa.
         const response = await apiClient.post<AiPlanResult>('/cultivation/generate-plan', planRequest, {
             headers: { 'Authorization': `Bearer ${session.user.email}` }
         });
@@ -129,9 +126,8 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
       return;
     }
     setLoadingControlAdvice(true);
-    setAiControlAdvice(null); // Limpiamos el consejo anterior
+    setAiControlAdvice(null);
     try {
-        // CORRECCIÓN: Se utiliza apiClient en lugar de axios con URL completa.
         const response = await apiClient.post<ValidationResult>('/cultivation/validate-parameters', {
             method,
             ph: ph ? parseFloat(ph) : null,
@@ -161,7 +157,6 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
     setAiImageResponse(null);
     
     try {
-        // CORRECCIÓN: Se utiliza apiClient en lugar de axios con URL completa.
         const response = await apiClient.post<ChatResponse>('/cultivation/chat', {
             question: aiQuestion,
             method: method
@@ -196,7 +191,6 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
 
   const isPlanButtonDisabled = !space || !experience || !location || !initialBudget || (method === 'hydroponics' && !light) || (method === 'organic' && !soilType) || loadingAiPlan;
   
-  // Bloque para usuarios no autenticados
   if (status === 'unauthenticated') {
     return (
         <div className="text-center p-8">
@@ -431,6 +425,4 @@ const CultivationModule = ({ initialMethod, userFinancialData }: CultivationModu
       </div>
     </div>
   );
-};
-
-export default CultivationModule;
+}

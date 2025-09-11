@@ -7,34 +7,27 @@ from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import speech
 import google.generativeai as genai
-# CORRECCIÓN: Se cambia la importación de Session por AsyncSession
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select # NUEVO
+from sqlalchemy.future import select
 from typing import List
 
-# --- Importaciones de nuestros nuevos módulos ---
-from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement
+from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement, CultivationPlan
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
-# CORRECCIÓN: get_user_or_create ahora es async, así que lo importamos
-from dependencies import get_db, get_user_or_create, parse_expense_with_gemini
+from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement
 from routers import finance, cultivation, family, market_data, gamification
 
-# --- Creación de la aplicación FastAPI ---
 app = FastAPI(title="Resi API", version="4.0.0")
 
-# CORRECCIÓN: Se utiliza el evento de inicio para crear las tablas de forma segura
 @app.on_event("startup")
 async def startup_event():
     await create_db_and_tables()
 
-# --- Middlewares ---
 origins = [
     "http://localhost:3000",
     "https://resi-argentina.vercel.app",
 ]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-# --- Incluimos los routers de los módulos ---
 app.include_router(finance.router)
 app.include_router(finance.goals_router)
 app.include_router(cultivation.router)
@@ -42,7 +35,6 @@ app.include_router(family.router)
 app.include_router(market_data.router)
 app.include_router(gamification.router)
 
-# --- Configuración de IA ---
 speech_client = speech.SpeechClient()
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 system_prompt_chat = textwrap.dedent("""
@@ -62,7 +54,8 @@ system_prompt_chat = textwrap.dedent("""
     Ahora tienes acceso a información más profunda del usuario. Úsala para dar consejos increíblemente personalizados:
     - `risk_profile`: Perfil de riesgo del usuario (Conservador, Moderado, Audaz). Adapta tus sugerencias de ahorro e inversión a esto.
     - `long_term_goals`: Metas a largo plazo del usuario (ej: "comprar una casa", "jubilarme a los 60"). Ayúdalo a alinear sus decisiones diarias con estas metas.
-    - `family_plan`: El último plan familiar que generó. Si pregunta sobre comidas o actividades, básate en este plan.
+    - `last_family_plan`: El último plan familiar que generó. Si pregunta sobre comidas o actividades, básate en este plan.
+    - `last_cultivation_plan`: El último plan de cultivo que generó. Si pregunta sobre su huerta, utiliza este plan como base.
 
     NUEVA CAPACIDAD: CONTEXTO EN TIEMPO REAL
     Al inicio de cada conversación, recibirás un bloque de "CONTEXTO EN TIEMPO REAL" con datos económicos actuales. DEBES usar esta información para que tus consejos sean precisos y valiosos.
@@ -85,7 +78,6 @@ model_chat = genai.GenerativeModel(
     system_instruction=system_prompt_chat
 )
 
-# --- ENDPOINTS GLOBALES ---
 @app.get("/")
 def read_root():
     return {"status": "ok", "version": "4.0.0"}
@@ -112,6 +104,8 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession 
             db.add(new_expense)
             await db.commit()
             await db.refresh(new_expense)
+            # NUEVO: Lógica de gamificación para audio
+            await award_achievement(user, "first_expense", db)
             return {"status": "Gasto registrado con éxito", "data": parsed_data}
         else:
             return {"status": "No se pudo categorizar el gasto", "data": {"description": full_transcript}}
@@ -127,6 +121,8 @@ async def process_text(input_data: TextInput, db: AsyncSession = Depends(get_db)
         db.add(new_expense)
         await db.commit()
         await db.refresh(new_expense)
+        # NUEVO: Lógica de gamificación para texto
+        await award_achievement(user, "first_expense", db)
         return {"status": "Gasto registrado con éxito", "data": parsed_data}
     else:
         return {"status": "No se pudo categorizar el gasto", "data": {"description": input_data.text}}
@@ -143,19 +139,27 @@ async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user
     await db.commit()
 
     # --- Construcción de Contexto Avanzado para la IA (Ruta 2) ---
-    # 1. Obtenemos los datos en tiempo real
     try:
         dolar_data = await market_data.get_dolar_prices()
         real_time_context = f"CONTEXTO EN TIEMPO REAL: El Dólar Blue está a ${dolar_data['blue']['venta']} para la venta. El Dólar Oficial está a ${dolar_data['oficial']['venta']}."
     except Exception as e:
         real_time_context = "CONTEXTO EN TIEMPO REAL: No se pudo obtener la cotización del dólar en este momento."
 
-    # 2. Obtenemos el perfil del usuario
+    # 2. Obtenemos el perfil del usuario y los nuevos planes
     summary_data = await finance.get_dashboard_summary(db=db, user=user)
     financial_context = f"Contexto financiero del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."
     risk_profile = user.risk_profile or "no definido"
     long_term_goals = user.long_term_goals or "no definidas"
-    profile_context = f"Perfil del usuario: Se define como '{risk_profile}' y su meta a largo plazo es '{long_term_goals}'."
+    last_family_plan = user.last_family_plan or "no se ha generado un plan familiar"
+    last_cultivation_plan = user.last_cultivation_plan or "no se ha generado un plan de cultivo"
+
+    profile_context = f"""
+    Perfil del usuario:
+    - Perfil de riesgo: '{risk_profile}'
+    - Metas a largo plazo: '{long_term_goals}'
+    - Último plan familiar: {last_family_plan}
+    - Último plan de cultivo: {last_cultivation_plan}
+    """
 
     full_context = f"{real_time_context}\n{financial_context}\n{profile_context}"
 

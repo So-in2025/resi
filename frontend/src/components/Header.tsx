@@ -5,12 +5,16 @@ import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
 import apiClient from '@/lib/apiClient';
+import { FaCoins, FaStar } from 'react-icons/fa';
 
 interface DashboardData {
     income: number;
     total_spent: number;
 }
-
+interface GameProfileData {
+    resi_score: number;
+    resilient_coins: number;
+}
 interface HeaderProps {
     refreshTrigger?: number;
 }
@@ -39,24 +43,25 @@ const HeaderSkeleton = () => (
 export default function Header({ refreshTrigger }: HeaderProps) {
     const { data: session, status } = useSession();
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+    const [gameProfile, setGameProfile] = useState<GameProfileData | null>(null);
 
     const fetchData = useCallback(async () => {
         if (status !== 'authenticated' || !session?.user?.email) {
             setDashboardData(null);
+            setGameProfile(null);
             return;
         }
         try {
-            const response = await apiClient.get('/finance/dashboard-summary', {
-                headers: { 'Authorization': `Bearer ${session.user.email}` }
-            });
-            const data: DashboardData = response.data;
-            setDashboardData({
-                income: data.income,
-                total_spent: data.total_spent
-            });
+            const [dashboardRes, gamificationRes] = await Promise.all([
+                apiClient.get('/finance/dashboard-summary', { headers: { 'Authorization': `Bearer ${session.user.email}` } }),
+                apiClient.get('/gamification', { headers: { 'Authorization': `Bearer ${session.user.email}` } }),
+            ]);
+            setDashboardData(dashboardRes.data);
+            setGameProfile(gamificationRes.data);
         } catch (error) {
             console.error("Error al cargar los datos del dashboard en el header:", error);
             setDashboardData(null);
+            setGameProfile(null);
         }
     }, [status, session]);
 
@@ -65,6 +70,7 @@ export default function Header({ refreshTrigger }: HeaderProps) {
             fetchData();
         } else if (status === 'unauthenticated') {
             setDashboardData(null);
+            setGameProfile(null);
         }
     }, [status, session, refreshTrigger, fetchData]);
 
@@ -109,6 +115,20 @@ export default function Header({ refreshTrigger }: HeaderProps) {
                         </div>
                     </div>
 
+                    {/* NUEVO: Información de gamificación en el header */}
+                    {gameProfile && (
+                        <div className="flex items-center space-x-4 mb-4 md:mb-0">
+                            <div className="flex items-center">
+                                <FaStar className="text-yellow-400 mr-1" />
+                                <span className="text-sm font-semibold">{gameProfile.resi_score}</span>
+                            </div>
+                            <div className="flex items-center">
+                                <FaCoins className="text-yellow-400 mr-1" />
+                                <span className="text-sm font-semibold">{gameProfile.resilient_coins}</span>
+                            </div>
+                        </div>
+                    )}
+                    
                     <nav className="flex items-center justify-between md:justify-start gap-4 w-full">
                         <Link href="/planner" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold whitespace-nowrap">
                             Panel de control

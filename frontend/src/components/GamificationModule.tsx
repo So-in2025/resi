@@ -9,7 +9,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import SectionHeader from './SectionHeader';
 import { GameProfile, UserAchievement } from '@/types/gamification';
 
-// Componente para la barra de progreso circular del ResiScore
 const ProgressRing = ({ value, max }: { value: number; max: number }) => {
     const radius = 50;
     const circumference = 2 * Math.PI * radius;
@@ -51,7 +50,6 @@ const ProgressRing = ({ value, max }: { value: number; max: number }) => {
     );
 };
 
-// Componente para una tarjeta de logro individual
 const AchievementCard = ({ achievement, progress, is_completed }: UserAchievement) => {
     const cardVariants = {
         hidden: { opacity: 0, y: 20, scale: 0.9 },
@@ -80,7 +78,6 @@ const AchievementCard = ({ achievement, progress, is_completed }: UserAchievemen
     );
 };
 
-// --- COMPONENTE PRINCIPAL ---
 export default function GamificationModule() {
     const { data: session, status } = useSession();
     const [profile, setProfile] = useState<GameProfile | null>(null);
@@ -113,7 +110,6 @@ export default function GamificationModule() {
         fetchProfile();
     }, [session, status]);
 
-    // Lógica de renderizado condicional corregida y más robusta
     if (status === 'unauthenticated') {
         return (
             <div className="text-center p-8">
@@ -144,11 +140,9 @@ export default function GamificationModule() {
         );
     }
     
-    // CORRECCIÓN: La desestructuración se mueve a este bloque, donde 'profile' no es null.
     const maxResiScore = 1000;
-    const { financial_points, cultivation_points, community_points, resilient_coins, resi_score } = profile!;
+    const { financial_points, cultivation_points, community_points, resilient_coins, resi_score, achievements } = profile!;
     
-    // Variantes de animación para Framer Motion
     const containerVariants = {
         hidden: { opacity: 0 },
         visible: {
@@ -159,16 +153,8 @@ export default function GamificationModule() {
         }
     };
 
-    const mockAchievements: UserAchievement[] = [
-        { achievement: { id: "first_expense", name: "Primer Gasto", description: "Registra tu primer gasto.", icon: "📝", points: 1, type: 'finance' }, progress: 1, is_completed: true },
-        { achievement: { id: "five_expenses", name: "Gasto Constante", description: "Registra 5 gastos en un mes.", icon: "🗓️", points: 5, type: 'finance' }, progress: 3, is_completed: false },
-        { achievement: { id: "first_goal", name: "Meta de Ahorro", description: "Crea tu primera meta.", icon: "🎯", points: 1, type: 'finance' }, progress: 1, is_completed: true },
-        { achievement: { id: "first_plan", name: "Planificador de Resi", description: "Crea tu primer presupuesto.", icon: "💰", points: 1, type: 'finance' }, progress: 1, is_completed: true },
-        { achievement: { id: "hydroponics_starter", name: "Hidroponía Junior", description: "Inicia un plan de cultivo hidropónico.", icon: "💧", points: 1, type: 'cultivation' }, progress: 0, is_completed: false },
-    ];
-
-    const completedAchievements = mockAchievements.filter(a => a.is_completed);
-    const inProgressAchievements = mockAchievements.filter(a => !a.is_completed);
+    const completedAchievements = achievements.filter(a => a.is_completed);
+    const inProgressAchievements = achievements.filter(a => !a.is_completed);
 
     return (
         <motion.div initial="hidden" animate="visible" variants={containerVariants} className="space-y-12">

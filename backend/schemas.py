@@ -7,14 +7,13 @@ class TextInput(BaseModel): text: str
 class BudgetItemInput(BaseModel): category: str; allocated_amount: float; is_custom: bool
 class BudgetInput(BaseModel): income: float; items: List[BudgetItemInput]
 
-# --- OnboardingData AMPLIADO ---
 class OnboardingData(BaseModel): 
     income: float
     occupation: str
     age: int
     familyGroup: int
-    risk_profile: str # Nuevo
-    long_term_goals: str # Nuevo
+    risk_profile: str
+    long_term_goals: str
 
 class GoalInput(BaseModel): name: str; target_amount: float
 class CultivationPlanRequest(BaseModel):
@@ -27,13 +26,16 @@ class ValidateParamsRequest(BaseModel):
     temp: Optional[float] = None; soilMoisture: Optional[float] = None
 class ResilienceSummary(BaseModel):
     title: str; message: str; suggestion: str; supermarket_spending: float
+    # CORRECCIÓN: Se cambia orm_mode por from_attributes
+    class Config:
+        from_attributes = True
 
 # --- Schemas para Planificador Familiar AMPLIADO ---
 class FamilyMember(BaseModel): age: str; role: str
 class FamilyPlanRequest(BaseModel):
     familyMembers: List[FamilyMember]
     dietaryPreferences: List[str]
-    cookingStyle: str # Nuevo
+    cookingStyle: str
     leisureActivities: List[str]
     financialGoals: str
 
@@ -51,9 +53,9 @@ class FamilyPlanResponse(BaseModel):
     mealPlan: List[MealPlanItem]
     budgetSuggestion: str
     leisureSuggestion: LeisureSuggestion
-
+    # CORRECCIÓN: Se cambia orm_mode por from_attributes
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ExpenseData(BaseModel):
     amount: float; category: str; description: str
@@ -62,10 +64,12 @@ class ChatMessageResponse(BaseModel):
     sender: str
     message: str
     timestamp: datetime
+    # CORRECCIÓN: Se cambia orm_mode por from_attributes
     class Config:
-        orm_mode = True
+        from_attributes = True
 
-# --- NUEVOS SCHEMAS PARA GAMIFICACIÓN ---
+# --- NUEVOS SCHEMAS DE RESPUESTA, ajustados para la base de datos real ---
+
 class AchievementSchema(BaseModel):
     id: str
     name: str
@@ -73,20 +77,26 @@ class AchievementSchema(BaseModel):
     icon: Optional[str] = None
     points: int
     type: str
+    # CORRECCIÓN: Se cambia orm_mode por from_attributes
+    class Config:
+        from_attributes = True
 
 class UserAchievementSchema(BaseModel):
     achievement: AchievementSchema
     progress: int
     is_completed: bool
-    completion_date: Optional[datetime] = None
+    completion_date: Optional[str] = None
+    # CORRECCIÓN: Se cambia orm_mode por from_attributes
+    class Config:
+        from_attributes = True
 
-class GameProfileSchema(BaseModel):
+class GameProfileResponse(BaseModel):
     resi_score: int
     resilient_coins: int
     financial_points: int
     cultivation_points: int
     community_points: int
     achievements: List[UserAchievementSchema] = []
-
+    # CORRECCIÓN: Se cambia orm_mode por from_attributes
     class Config:
         from_attributes = True

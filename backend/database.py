@@ -15,9 +15,7 @@ else:
     if DATABASE_URL.startswith("postgresql://"):
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
     
-    # --- LÍNEA AGREGADA PARA DEPURACIÓN ---
     print(f"DEBUG: Conectando con URL: {DATABASE_URL}")
-    # --- FIN DE LA LÍNEA DE DEPURACIÓN ---
 
     engine = create_async_engine(DATABASE_URL)
 
@@ -36,11 +34,19 @@ class User(Base):
     is_premium = Column(Boolean, default=False)
     risk_profile = Column(String, nullable=True)
     long_term_goals = Column(Text, nullable=True)
+    
+    # NUEVOS CAMPOS: Para historial de IA
+    last_family_plan = Column(Text, nullable=True)
+    last_cultivation_plan = Column(Text, nullable=True)
+    
     expenses = relationship("Expense", back_populates="owner")
     budget_items = relationship("BudgetItem", back_populates="owner")
     saving_goals = relationship("SavingGoal", back_populates="owner")
     chat_messages = relationship("ChatMessage", back_populates="owner")
     family_plans = relationship("FamilyPlan", back_populates="owner")
+    cultivation_plans = relationship("CultivationPlan", back_populates="owner")
+    
+    # NUEVAS RELACIONES para el Módulo 5
     game_profile = relationship("GameProfile", back_populates="owner", uselist=False)
     user_achievements = relationship("UserAchievement", back_populates="owner")
 
@@ -84,12 +90,18 @@ class ChatMessage(Base):
 class FamilyPlan(Base):
     __tablename__ = "family_plans"
     id = Column(Integer, primary_key=True, index=True)
-    meal_plan_json = Column(Text, nullable=False)
-    budget_suggestion = Column(Text, nullable=False)
-    leisure_suggestion_json = Column(Text, nullable=False)
+    plan_data = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     user_email = Column(String, ForeignKey("users.email"))
     owner = relationship("User", back_populates="family_plans")
+
+class CultivationPlan(Base):
+    __tablename__ = "cultivation_plans"
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, ForeignKey("users.email"))
+    plan_data = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    owner = relationship("User", back_populates="cultivation_plans")
 
 class GameProfile(Base):
     __tablename__ = "game_profiles"
@@ -112,9 +124,8 @@ class Achievement(Base):
 
 class UserAchievement(Base):
     __tablename__ = "user_achievements"
-    id = Column(Integer, primary_key=True, index=True)
-    user_email = Column(String, ForeignKey("users.email"))
-    achievement_id = Column(String, ForeignKey("achievements.id"))
+    user_email = Column(String, ForeignKey("users.email"), primary_key=True)
+    achievement_id = Column(String, ForeignKey("achievements.id"), primary_key=True)
     progress = Column(Integer, default=0)
     is_completed = Column(Boolean, default=False)
     completion_date = Column(DateTime, nullable=True)
