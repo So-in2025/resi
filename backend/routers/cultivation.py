@@ -13,6 +13,7 @@ router = APIRouter(
     tags=["Cultivation"]
 )
 
+# CORRECCIÓN: Convertido a async
 @router.post("/generate-plan")
 async def generate_cultivation_plan(request: CultivationPlanRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     tips = ""
@@ -44,7 +45,6 @@ async def generate_cultivation_plan(request: CultivationPlanRequest, db: AsyncSe
         "imagePrompt": f"Diseño de un {system} con {crop} para un usuario {request.experience} en {request.location}"
     }
 
-    # Guardar el plan en la base de datos
     new_plan = CultivationPlan(user_email=user.email, plan_data=json.dumps(response_plan))
     db.add(new_plan)
     user.last_cultivation_plan = json.dumps(response_plan)
@@ -52,6 +52,7 @@ async def generate_cultivation_plan(request: CultivationPlanRequest, db: AsyncSe
 
     return response_plan
 
+# CORRECCIÓN: Convertido a async
 @router.post("/chat")
 async def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_or_create)):
     question = request.question.lower()
@@ -70,6 +71,7 @@ async def cultivation_chat(request: AIChatInput, user: User = Depends(get_user_o
         image_prompt = "Icono de un cerebro de IA con signos de pregunta."
     return {"response": response, "imagePrompt": image_prompt}
 
+# CORRECCIÓN: Convertido a async
 @router.post("/validate-parameters")
 async def validate_cultivation_parameters(request: ValidateParamsRequest, user: User = Depends(get_user_or_create)):
     is_valid = True

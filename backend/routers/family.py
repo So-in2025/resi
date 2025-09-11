@@ -14,6 +14,7 @@ router = APIRouter(
     tags=["Family Plan"]
 )
 
+# CORRECCIÓN: Convertido a async
 @router.get("/latest", response_model=FamilyPlanResponse)
 async def get_latest_family_plan(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     result = await db.execute(
@@ -22,7 +23,7 @@ async def get_latest_family_plan(db: AsyncSession = Depends(get_db), user: User 
     latest_plan = result.scalars().first()
     
     if not latest_plan or not latest_plan.plan_data:
-        return None
+        return None 
     
     plan_data = json.loads(latest_plan.plan_data)
     
@@ -32,6 +33,7 @@ async def get_latest_family_plan(db: AsyncSession = Depends(get_db), user: User 
         leisureSuggestion=LeisureSuggestion(**plan_data.get("leisureSuggestion", {}))
     )
 
+# CORRECCIÓN: Convertido a async
 @router.post("/generate", response_model=FamilyPlanResponse)
 async def generate_family_plan(request: FamilyPlanRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     recipes = [
@@ -81,7 +83,7 @@ async def generate_family_plan(request: FamilyPlanRequest, db: AsyncSession = De
 
     new_plan = FamilyPlan(
         user_email=user.email,
-        plan_data=response_data.json()
+        plan_data=response_data.json() 
     )
     db.add(new_plan)
     
