@@ -7,21 +7,23 @@ from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import speech
 import google.generativeai as genai
-from sqlalchemy.orm import Session
+# CORRECCIÓN: Se cambia la importación de Session por AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 # --- Importaciones de nuestros nuevos módulos ---
-# CORRECCIÓN: Se añaden las clases GameProfile, Achievement y UserAchievement
 from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini
-# CORRECCIÓN: Se importa el router de gamification
 from routers import finance, cultivation, family, market_data, gamification
 
 # --- Creación de la aplicación FastAPI ---
 app = FastAPI(title="Resi API", version="4.0.0")
 
-create_db_and_tables()
+# CORRECCIÓN: Se utiliza el evento de inicio para crear las tablas de forma segura
+@app.on_event("startup")
+async def startup_event():
+    await create_db_and_tables()
 
 # --- Middlewares ---
 origins = [
@@ -35,8 +37,7 @@ app.include_router(finance.router)
 app.include_router(finance.goals_router)
 app.include_router(cultivation.router)
 app.include_router(family.router)
-app.include_router(market_data.router) # <-- INCLUIMOS EL NUEVO ROUTER
-# CORRECCIÓN: Se incluye el nuevo router de gamificación
+app.include_router(market_data.router)
 app.include_router(gamification.router)
 
 # --- Configuración de IA ---
@@ -88,7 +89,7 @@ def read_root():
     return {"status": "ok", "version": "4.0.0"}
 
 @app.post("/transcribe")
-async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+async def transcribe_audio(audio_file: UploadFile = File(...), db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     try:
         wav_audio_content = await audio_file.read()
         config = speech.RecognitionConfig(
@@ -107,8 +108,8 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Dep
         if parsed_data:
             new_expense = Expense(user_email=user.email, **parsed_data)
             db.add(new_expense)
-            db.commit()
-            db.refresh(new_expense)
+            await db.commit()
+            await db.refresh(new_expense)
             return {"status": "Gasto registrado con éxito", "data": parsed_data}
         else:
             return {"status": "No se pudo categorizar el gasto", "data": {"description": full_transcript}}
@@ -117,26 +118,27 @@ async def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Dep
         raise HTTPException(status_code=400, detail=f"Error en la transcripción: No se pudo procesar el audio.")
 
 @app.post("/process-text")
-async def process_text(input_data: TextInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+async def process_text(input_data: TextInput, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     parsed_data = await parse_expense_with_gemini(input_data.text, db, user.email)
     if parsed_data:
         new_expense = Expense(user_email=user.email, **parsed_data)
         db.add(new_expense)
-        db.commit()
-        db.refresh(new_expense)
+        await db.commit()
+        await db.refresh(new_expense)
         return {"status": "Gasto registrado con éxito", "data": parsed_data}
     else:
         return {"status": "No se pudo categorizar el gasto", "data": {"description": input_data.text}}
 
 @app.get("/chat/history", response_model=List[ChatMessageResponse])
-def get_chat_history(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
-    history = db.query(ChatMessage).filter(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.asc()).all()
+async def get_chat_history(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
+    result = await db.execute(select(ChatMessage).where(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.asc()))
+    history = result.scalars().all()
     return history
 
 @app.post("/chat")
-async def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+async def ai_chat(request: AIChatInput, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     db.add(ChatMessage(user_email=user.email, sender="user", message=request.question))
-    db.commit()
+    await db.commit()
 
     # --- Construcción de Contexto Avanzado para la IA (Ruta 2) ---
     # 1. Obtenemos los datos en tiempo real
@@ -147,7 +149,7 @@ async def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: Use
         real_time_context = "CONTEXTO EN TIEMPO REAL: No se pudo obtener la cotización del dólar en este momento."
 
     # 2. Obtenemos el perfil del usuario
-    summary_data = finance.get_dashboard_summary(db=db, user=user)
+    summary_data = await finance.get_dashboard_summary(db=db, user=user)
     financial_context = f"Contexto financiero del usuario: Su ingreso es de ${summary_data['income']:,.0f} y ya gastó ${summary_data['total_spent']:,.0f} este mes."
     risk_profile = user.risk_profile or "no definido"
     long_term_goals = user.long_term_goals or "no definidas"
@@ -156,7 +158,8 @@ async def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: Use
     full_context = f"{real_time_context}\n{financial_context}\n{profile_context}"
 
     # 3. Historial de Chat Reciente
-    chat_history_db = db.query(ChatMessage).filter(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.desc()).limit(10).all()
+    result = await db.execute(select(ChatMessage).where(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.desc()).limit(10))
+    chat_history_db = result.scalars().all()
     chat_history_db.reverse()
     history_for_ia = [
         {"role": "user", "parts": [full_context]},
@@ -172,28 +175,29 @@ async def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: Use
         response_model = await chat.send_message_async(request.question)
         ai_response_text = response_model.text
         db.add(ChatMessage(user_email=user.email, sender="ai", message=ai_response_text))
-        db.commit()
+        await db.commit()
         return {"response": ai_response_text}
     except Exception as e:
         print(f"Error al procesar la solicitud con la IA: {e}")
         raise HTTPException(status_code=500, detail=f"Error al procesar la solicitud con la IA: {e}")
 
 @app.get("/check-onboarding")
-def check_onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+async def check_onboarding_status(db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     return {"onboarding_completed": user.has_completed_onboarding if user else False}
 
 @app.post("/onboarding-complete")
-async def onboarding_complete(onboarding_data: OnboardingData, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+async def onboarding_complete(onboarding_data: OnboardingData, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_or_create)):
     user.has_completed_onboarding = True
     user.risk_profile = onboarding_data.risk_profile
     user.long_term_goals = onboarding_data.long_term_goals
     
-    income_item = db.query(BudgetItem).filter(BudgetItem.user_email == user.email, BudgetItem.category == "_income").first()
+    result = await db.execute(select(BudgetItem).where(BudgetItem.user_email == user.email, BudgetItem.category == "_income"))
+    income_item = result.scalars().first()
     if income_item:
         income_item.allocated_amount = onboarding_data.income
     else:
         db.add(BudgetItem(category="_income", allocated_amount=onboarding_data.income, user_email=user.email))
     
-    db.commit()
+    await db.commit()
     
     return {"status": "Información guardada con éxito"}
