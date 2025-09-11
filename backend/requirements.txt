@@ -12,6 +12,8 @@ psycopg2-binary
 google-generativeai # <-- Agregada para la integración del LLM
 httpx
 aiosqlite # <-- AÑADIDO
+# CORRECCIÓN: Añadimos el driver asíncrono para PostgreSQL
+asyncpg
 
 # CORRECCIÓN FINAL: Usamos el modelo PEQUEÑO (sm), el más liviano de todos,
 # para asegurar que la app arranque sin problemas en el plan gratuito de Render.
