@@ -1,18 +1,21 @@
 # En: backend/dependencies.py
+import os
+import io
+import textwrap
+import json
+import asyncio
+import httpx
 from fastapi import Depends, HTTPException, Header, status, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import func, delete
 from typing import Optional, List
-import json
-import textwrap
+from datetime import datetime, timedelta
 import google.generativeai as genai
-from sqlalchemy import func
-from datetime import datetime
-import os
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
-from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse
-# Se eliminó la importación de 'main', evitando el error de dependencia circular
-from routers import market_data, finance
+from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse, ResilienceSummary
 
 # --- CONFIGURACIÓN E INICIALIZACIÓN DE LOS MODELOS DE IA ---
 # Se movió aquí para evitar la dependencia circular.
@@ -286,8 +289,8 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
     """
     global model_family_plan_generator
     
-    user_email = db.query(User).filter(User.email == request.user_email).first().email
-    user_income = db.query(BudgetItem).filter(BudgetItem.user_email == user_email, BudgetItem.category == "_income").first().allocated_amount
+    user = db.query(User).filter(User.email == request.user_email).first()
+    user_income = db.query(BudgetItem).filter(BudgetItem.user_email == user.email, BudgetItem.category == "_income").first().allocated_amount
     
     plan_prompt = textwrap.dedent(f"""
     Basado en los siguientes datos familiares:
@@ -297,6 +300,7 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
     - Metas financieras: {request.financialGoals}
     - Actividades de ocio: {request.leisureActivities}
     - Ingreso mensual familiar: ${user_income:,.0f}
+    - Detalles adicionales del usuario: {user.long_term_goals} y {user.risk_profile}
 
     Actúa como un experto en planificación familiar y diseña un plan semanal (menú y actividades) y un consejo de presupuesto. El plan debe tener la siguiente estructura JSON y NO DEBE incluir ninguna otra información.
 
@@ -309,7 +313,8 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
       "leisureSuggestion": {{"activity": "Sugerencia de actividad", "cost": "costo estimado (ej: nulo, bajo, medio)", "description": "Una breve descripción de la actividad."}}
     }}
 
-    Asegúrate de que el plan de comidas y las sugerencias de ocio sean adecuadas para la cantidad y edades de los miembros de la familia. El consejo de presupuesto debe ser muy específico y útil, utilizando el ingreso mensual como base.
+    Asegúrate de que el plan de comidas y las sugerencias de ocio sean adecuadas para la cantidad y edades de los miembros de la familia, y que tengan en cuenta los detalles adicionales y metas del usuario.
+    El consejo de presupuesto debe ser muy específico y útil, utilizando el ingreso mensual como base.
     """)
 
     try:
