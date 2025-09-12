@@ -11,18 +11,16 @@ from sqlalchemy import func, delete
 from typing import Optional, List
 from datetime import datetime, timedelta
 import google.generativeai as genai
-from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
 
 from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
 from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse, ResilienceSummary
-# Se eliminó la importación de 'main', evitando el error de dependencia circular
-from routers import market_data
+from routers import market_data, finance
 
 # --- CONFIGURACIÓN E INICIALIZACIÓN DE LOS MODELOS DE IA ---
 # Se movió aquí para evitar la dependencia circular.
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
+# NOTA: EL PROMPT DE SISTEMA ESTÁ EN ESTE ARCHIVO PARA EVITAR EL ERROR DE IMPORTACIÓN CIRCULAR
 model_chat = genai.GenerativeModel(
     model_name="gemini-1.5-flash-latest",
     system_instruction=textwrap.dedent("""
