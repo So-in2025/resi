@@ -196,7 +196,7 @@ def parse_expense_with_gemini(text: str, db: Session, user_email: str) -> Option
         
         return validated_data.dict()
         
-    except Exception as e:
+    except (json.JSONDecodeError, ValidationError, Exception) as e:
         print(f"Error al procesar con Gemini o validar los datos: {e}")
         return None
 
@@ -243,7 +243,7 @@ def generate_plan_with_gemini(request: CultivationPlanRequest, db: Session, user
         validated_plan = CultivationPlanResult(**parsed_plan)
         return validated_plan
         
-    except Exception as e:
+    except (json.JSONDecodeError, ValidationError, Exception) as e:
         print(f"Error al generar el plan de cultivo con Gemini: {e}")
         raise HTTPException(status_code=500, detail="Error de la IA al generar el plan de cultivo.")
 
@@ -285,7 +285,7 @@ def validate_parameters_with_gemini(request: ValidateParamsRequest):
         
         return parsed_response
         
-    except Exception as e:
+    except (json.JSONDecodeError, ValidationError, Exception) as e:
         print(f"Error al validar parámetros con Gemini: {e}")
         raise HTTPException(status_code=500, detail="Error de la IA al validar los parámetros.")
 
@@ -330,7 +330,7 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
         validated_plan = FamilyPlanResponse(**parsed_plan)
         return validated_plan
         
-    except Exception as e:
+    except (json.JSONDecodeError, ValidationError, Exception) as e:
         print(f"Error al generar el plan familiar con Gemini: {e}")
         raise HTTPException(status_code=500, detail="Error de la IA al generar el plan familiar.")
 
