@@ -352,7 +352,7 @@ export default function HomePage() {
           <div id="modulo-gamificacion" className="mt-12 w-full max-w-4xl scroll-mt-20">
               <Accordion 
                   id="modulo-gamificacion"
-                  title="Módulo 4: Comunidad y Gamificación"
+                  title="Módulo 4: Gamificación"
                   isOpen={openAccordionId === 'modulo-gamificacion'}
                   onToggle={() => handleAccordionToggle('modulo-gamificacion')}
               >
