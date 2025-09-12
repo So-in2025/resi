@@ -238,6 +238,10 @@ def generate_plan_with_gemini(request: CultivationPlanRequest, db: Session, user
     
     try:
         response = model_plan_generator.generate_content(plan_prompt)
+        # CORRECCIÓN: Verificar si la respuesta es nula o vacía antes de procesarla.
+        if not response.text:
+            raise HTTPException(status_code=500, detail="La IA no devolvió una respuesta válida. Por favor, inténtalo de nuevo.")
+
         parsed_plan = json.loads(response.text)
         
         validated_plan = CultivationPlanResult(**parsed_plan)
@@ -245,6 +249,7 @@ def generate_plan_with_gemini(request: CultivationPlanRequest, db: Session, user
         
     except (json.JSONDecodeError, ValidationError, Exception) as e:
         print(f"Error al generar el plan de cultivo con Gemini: {e}")
+        # CORRECCIÓN: Devolver el mensaje de error para que el frontend lo pueda mostrar.
         raise HTTPException(status_code=500, detail=f"Error de la IA al generar el plan de cultivo. Causa: {e}")
 
 def validate_parameters_with_gemini(request: ValidateParamsRequest):

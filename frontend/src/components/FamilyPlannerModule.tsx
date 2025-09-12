@@ -1,7 +1,7 @@
 // En: frontend/src/components/FamilyPlannerModule.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import { FaUsers, FaAppleAlt, FaPiggyBank, FaGamepad, FaArrowLeft, FaArrowRight, FaRobot, FaMicrochip, FaUserPlus, FaTrashAlt, FaUtensils } from 'react-icons/fa';
 import apiClient from '@/lib/apiClient';
@@ -42,7 +42,8 @@ export default function FamilyPlannerModule() {
     const fetchLatestPlan = async () => {
         if (session?.user?.email) {
             try {
-                const response = await apiClient.get('/family/latest', {
+                // CORRECCIÓN: Se ajusta la URL para que coincida con el backend
+                const response = await apiClient.get('/family-plan/latest', {
                     headers: { 'Authorization': `Bearer ${session.user.email}` }
                 });
                 if (response.data) {
@@ -94,7 +95,8 @@ export default function FamilyPlannerModule() {
     };
 
     try {
-      const response = await apiClient.post('/family/generate', planRequest, {
+      // CORRECCIÓN: Se ajusta la URL para que coincida con el backend
+      const response = await apiClient.post('/family-plan/generate', planRequest, {
         headers: { 'Authorization': `Bearer ${session.user.email}` }
       });
       setAiPlan(response.data);
