@@ -12,6 +12,7 @@ import os
 from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
 from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse
 # Se eliminó la importación de 'main', evitando el error de dependencia circular
+from routers import market_data, finance
 
 # --- CONFIGURACIÓN E INICIALIZACIÓN DE LOS MODELOS DE IA ---
 # Se movió aquí para evitar la dependencia circular.
@@ -284,7 +285,7 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
     Función que genera un plan familiar dinámicamente con la IA de Gemini.
     """
     global model_family_plan_generator
-
+    
     user_email = db.query(User).filter(User.email == request.user_email).first().email
     user_income = db.query(BudgetItem).filter(BudgetItem.user_email == user_email, BudgetItem.category == "_income").first().allocated_amount
     

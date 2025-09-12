@@ -7,13 +7,12 @@ import asyncio
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import speech
-import google.generativeai as genai
 from sqlalchemy.orm import Session
 from typing import List
 
 from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement, CultivationPlan
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
-from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement, generate_plan_with_gemini, validate_parameters_with_gemini, generate_family_plan_with_gemini
+from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement, generate_plan_with_gemini, validate_parameters_with_gemini, generate_family_plan_with_gemini, model_chat
 from routers import finance, cultivation, family, market_data, gamification
 
 app = FastAPI(title="Resi API", version="4.5.0")
@@ -26,7 +25,6 @@ speech_client = None
 def startup_event():
     """
     Esta función se ejecuta una sola vez cuando la aplicación arranca.
-    Es el lugar SEGURO para inicializar clientes que hacen llamadas de red.
     """
     global speech_client
     
