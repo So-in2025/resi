@@ -238,7 +238,7 @@ export default function FamilyPlannerModule() {
       {/* NUEVO: Modal para mostrar la receta */}
       <Modal isOpen={isRecipeModalOpen} onClose={handleCloseRecipeModal} title={selectedMeal?.meal || "Receta"}>
           {selectedMeal && (
-              <div className="space-y-4 text-gray-300">
+              <div className="space-y-4 text-gray-300 overflow-y-auto max-h-[70vh]">
                   <h4 className="text-xl font-bold text-white flex items-center gap-2"><FaFileAlt/> Ingredientes</h4>
                   <ul className="list-disc list-inside space-y-1 pl-4">
                       {selectedMeal.ingredients.map((ing, i) => (
