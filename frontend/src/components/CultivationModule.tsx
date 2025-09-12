@@ -115,7 +115,7 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
     }
     setLoadingAiPlan(true);
     setAiPlanResult(null);
-    toast.loading('Resi está diseñando tu plan de cultivo...', { id: 'plan-toast' });
+    const toastId = toast.loading('Resi está diseñando tu plan de cultivo...');
 
     const planRequest = {
       method,
@@ -129,14 +129,16 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
     };
 
     try {
-        const response = await apiClient.post<AiPlanResult>('/cultivation/generate-plan', planRequest, {
+        const response = await apiClient.post('/cultivation/generate-plan', planRequest, {
             headers: { 'Authorization': `Bearer ${session.user.email}` }
         });
         setAiPlanResult(response.data);
-        toast.success('¡Plan generado con éxito!', { id: 'plan-toast' });
-    } catch (error) {
+        toast.success('¡Plan generado con éxito!', { id: toastId });
+    } catch (error: any) {
+        // CORRECCIÓN: Se maneja el error para mostrar el mensaje específico
+        const errorMsg = error.response?.data?.detail || "Hubo un error al generar tu plan. Inténtalo de nuevo.";
         console.error("Error al generar el plan de IA:", error);
-        toast.error('Hubo un error al generar tu plan.', { id: 'plan-toast' });
+        toast.error(errorMsg, { id: toastId });
     } finally {
         setLoadingAiPlan(false);
     }
@@ -179,7 +181,7 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
     setAiImageResponse(null);
     
     try {
-        const response = await apiClient.post<ChatResponse>('/cultivation/chat', {
+        const response = await apiClient.post('/cultivation/chat', {
             question: aiQuestion,
             method: method
         }, {
@@ -337,23 +339,23 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
             </p>
             <div className="space-y-4 md:space-y-0 md:flex md:space-x-4">
               <div className="flex-1">
-                <label htmlFor="ph" className="block text-sm font-medium text-gray-400">Nivel de pH</label>
+                <label htmlFor="ph" className="block text-sm font-medium text-gray-400 mb-1">Nivel de pH</label>
                 <input type="number" id="ph" className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white" placeholder={method === 'hydroponics' ? "Ej: 6.0" : "Ej: 6.5"} value={ph} onChange={(e) => setPh(e.target.value)} step="0.1"/>
               </div>
              {method === 'hydroponics' ? (
                 <>
                     <div className="flex-1">
-                        <label htmlFor="ec" className="block text-sm font-medium text-gray-400">Conductividad Eléctrica (EC)</label>
+                        <label htmlFor="ec" className="block text-sm font-medium text-gray-400 mb-1">Conductividad Eléctrica (EC)</label>
                         <input type="number" id="ec" className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white" placeholder="Ej: 1.5" value={ec} onChange={(e) => setEc(e.target.value)} step="0.1"/>
                     </div>
                     <div className="flex-1">
-                        <label htmlFor="temp" className="block text-sm font-medium text-gray-400">Temperatura (°C)</label>
+                        <label htmlFor="temp" className="block text-sm font-medium text-gray-400 mb-1">Temperatura (°C)</label>
                         <input type="number" id="temp" className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white" placeholder="Ej: 20" value={temp} onChange={(e) => setTemp(e.target.value)} step="1"/>
                     </div>
                 </>
              ) : (
                 <div className="flex-1">
-                    <label htmlFor="soilMoisture" className="block text-sm font-medium text-gray-400">Humedad del suelo (%)</label>
+                    <label htmlFor="soilMoisture" className="block text-sm font-medium text-gray-400 mb-1">Humedad del suelo (%)</label>
                     <input type="number" id="soilMoisture" className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white" placeholder="Ej: 45" value={soilMoisture} onChange={(e) => setSoilMoisture(e.target.value)} step="1"/>
                 </div>
              )}
@@ -377,7 +379,7 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
             <p className="text-center text-lg">Descubre cuánto puedes ahorrar en un mes cultivando tus propios alimentos.</p>
             <form onSubmit={calculateSavings} className="space-y-4">
               <div>
-                <label htmlFor="monthly-expense" className="block text-sm font-medium text-gray-400">Gasto mensual promedio en vegetales</label>
+                <label htmlFor="monthly-expense" className="block text-sm font-medium text-gray-400 mb-1">Gasto mensual promedio en vegetales</label>
                 <input type="number" id="monthly-expense" className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white focus:ring-green-500 focus:border-green-500" placeholder="Ej: $20000" value={monthlyVegetableExpense} onChange={(e) => setMonthlyVegetableExpense(e.target.value)} required />
               </div>
               <button type="submit" className="w-full bg-green-500 text-white font-bold py-2 px-4 rounded-md hover:bg-green-600 transition-colors duration-200 flex items-center justify-center"><FaCalculator className="mr-2" />Calcular Ahorro</button>
@@ -391,7 +393,6 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
           </div>
         )}
 
-        {/* Nuevo bloque para mostrar el plan guardado */}
         {activeTab === 'plan-guardado' && (
             <div className="space-y-6">
               <h3 className="text-3xl font-bold text-green-400 text-center mb-6">Tu Último Plan Guardado</h3>

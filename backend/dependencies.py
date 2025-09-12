@@ -245,7 +245,7 @@ def generate_plan_with_gemini(request: CultivationPlanRequest, db: Session, user
         
     except (json.JSONDecodeError, ValidationError, Exception) as e:
         print(f"Error al generar el plan de cultivo con Gemini: {e}")
-        raise HTTPException(status_code=500, detail="Error de la IA al generar el plan de cultivo.")
+        raise HTTPException(status_code=500, detail=f"Error de la IA al generar el plan de cultivo. Causa: {e}")
 
 def validate_parameters_with_gemini(request: ValidateParamsRequest):
     """
@@ -289,13 +289,12 @@ def validate_parameters_with_gemini(request: ValidateParamsRequest):
         print(f"Error al validar parámetros con Gemini: {e}")
         raise HTTPException(status_code=500, detail="Error de la IA al validar los parámetros.")
 
-def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
+def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session, user: User):
     """
     Función que genera un plan familiar dinámicamente con la IA de Gemini.
     """
     global model_family_plan_generator
     
-    user = db.query(User).filter(User.email == request.user_email).first()
     user_income = db.query(BudgetItem).filter(BudgetItem.user_email == user.email, BudgetItem.category == "_income").first().allocated_amount
     
     plan_prompt = textwrap.dedent(f"""

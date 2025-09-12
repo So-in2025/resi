@@ -6,7 +6,7 @@ import AnimatedMessage from "@/components/AnimatedMessage";
 import FloatingActionButton from "@/components/FloatingActionButton";
 import Modal from "@/components/Modal";
 import AddExpenseForm from "@/components/AddExpenseForm";
-import { useSession } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import CultivationModule from "@/components/CultivationModule";
@@ -17,7 +17,7 @@ import FamilyPlannerModule from "@/components/FamilyPlannerModule";
 import apiClient from "@/lib/apiClient";
 import dynamic from 'next/dynamic';
 import { ChatWindow, ChatMessage } from "@/components/ChatWindow";
-import { FaComments, FaClipboardList } from "react-icons/fa"; // Se añade el ícono para el botón
+import { FaComments, FaClipboardList } from "react-icons/fa";
 import toast from 'react-hot-toast';
 import GamificationModule from "@/components/GamificationModule";
 
@@ -26,7 +26,6 @@ const VoiceChatDinamic = dynamic(() => import('@/components/VoiceChat'), {
   loading: () => <div className="w-16 h-16 rounded-full bg-gray-700 animate-pulse" /> 
 });
 
-// 1. LOGO BETA APLICADO
 const HeroSection = () => (
   <div className="text-center mb-12 w-full max-w-4xl">
     <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4">
@@ -38,26 +37,25 @@ const HeroSection = () => (
   </div>
 );
 
-// 2. MODAL PARA LOGS DE UPDATES
 const UpdatesLogModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void; }) => (
     <Modal isOpen={isOpen} onClose={onClose} title="Historial de Actualizaciones">
         <div className="text-left text-gray-300 max-h-96 overflow-y-auto pr-4">
             <div className="mb-6">
-                [cite_start]<h3 className="text-xl font-semibold text-green-400 mb-2">Septiembre 2025 - Ruta 2: Conexión con el mundo real [cite: 59]</h3>
+                <h3 className="text-xl font-semibold text-green-400 mb-2">Septiembre 2025 - Ruta 2: Conexión con el mundo real</h3>
                 <ul className="list-disc list-inside space-y-1 text-gray-300">
-                    [cite_start]<li><span className="font-semibold text-white">APIs Externas:</span> Se implementó un nuevo módulo (`market_data.py`) para consumir APIs de datos económicos. [cite: 60, 18]</li>
-                    [cite_start]<li><span className="font-semibold text-white">IA en Tiempo Real:</span> La inteligencia artificial ahora integra datos económicos actualizados en sus respuestas. [cite: 61]</li>
-                    [cite_start]<li><span className="font-semibold text-white">Contexto Mejorado:</span> El endpoint de chat fue actualizado para fusionar el contexto del usuario con los datos del mundo real. [cite: 62]</li>
+                    <li><span className="font-semibold text-white">APIs Externas:</span> Se implementó un nuevo módulo (`market_data.py`) para consumir APIs de datos económicos.</li>
+                    <li><span className="font-semibold text-white">IA en Tiempo Real:</span> La inteligencia artificial ahora integra datos económicos actualizados en sus respuestas.</li>
+                    <li><span className="font-semibold text-white">Contexto Mejorado:</span> El endpoint de chat fue actualizado para fusionar el contexto del usuario con los datos del mundo real.</li>
                 </ul>
             </div>
             <div className="mb-6">
-                [cite_start]<h3 className="text-xl font-semibold text-gray-400 mb-2">Septiembre 2025 - Ruta 1: Hiper-personalización [cite: 63]</h3>
+                <h3 className="text-xl font-semibold text-gray-400 mb-2">Septiembre 2025 - Ruta 1: Hiper-personalización</h3>
                 <ul className="list-disc list-inside space-y-1 text-gray-400">
-                    [cite_start]<li><span className="font-semibold text-white">Onboarding Ampliado:</span> Se mejoró el proceso inicial para incluir el perfil de riesgo y metas a largo plazo del usuario. [cite: 64]</li>
-                    [cite_start]<li><span className="font-semibold text-white">Planificador Familiar:</span> El módulo ahora cuenta con más opciones y guarda los planes de forma persistente. [cite: 65]</li>
-                    [cite_start]<li><span className="font-semibold text-white">Base de Datos:</span> Se reestructuró la base de datos para soportar el nuevo contexto. [cite: 66]</li>
-                    [cite_start]<li><span className="font-semibold text-white">Historial de Chat:</span> Las conversaciones ahora se guardan por usuario. [cite: 67]</li>
-                    [cite_start]<li><span className="font-semibold text-white">IA Personalizada:</span> El motor de IA fue actualizado para utilizar todo el contexto disponible del usuario. [cite: 68]</li>
+                    <li><span className="font-semibold text-white">Onboarding Ampliado:</span> Se mejoró el proceso inicial para incluir el perfil de riesgo y metas a largo plazo del usuario.</li>
+                    <li><span className="font-semibold text-white">Planificador Familiar:</span> El módulo ahora cuenta con más opciones y guarda los planes de forma persistente.</li>
+                    <li><span className="font-semibold text-white">Base de Datos:</span> Se reestructuró la base de datos para soportar el nuevo contexto.</li>
+                    <li><span className="font-semibold text-white">Historial de Chat:</span> Las conversaciones ahora se guardan por usuario.</li>
+                    <li><span className="font-semibold text-white">IA Personalizada:</span> El motor de IA fue actualizado para utilizar todo el contexto disponible del usuario.</li>
                 </ul>
             </div>
         </div>
@@ -67,9 +65,10 @@ const UpdatesLogModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
 export default function HomePage() {
   const { data: session, status } = useSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false); // Estado para el nuevo modal
+  const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false);
   const [initialExpenseText, setInitialExpenseText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // CORRECCIÓN: El acordeón inicialmente abierto es nulo.
   const [openAccordionId, setOpenAccordionId] = useState<string | null>(null);
   const [selectedGardeningMethod, setSelectedGardeningMethod] = useState('hydroponics');
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
@@ -88,14 +87,15 @@ export default function HomePage() {
           });
           const completed = response.data.onboarding_completed;
           setHasCompletedOnboarding(completed);
-          if (completed) {
-            setOpenAccordionId('mis-finanzas');
-          } else {
+          // CORRECCIÓN: Solo si no se ha completado el onboarding, se abre el acordeón de primeros pasos.
+          if (!completed) {
             setOpenAccordionId('primeros-pasos');
+          } else {
+            setOpenAccordionId(null);
           }
         } catch (error) {
           console.error("Error al chequear el estado de onboarding:", error);
-          setOpenAccordionId('primeros-pasos');
+          setOpenAccordionId(null);
         }
       } else {
         setOpenAccordionId('primeros-pasos');
@@ -180,7 +180,8 @@ export default function HomePage() {
   
   const handleOnboardingComplete = () => {
     setHasCompletedOnboarding(true);
-    setOpenAccordionId('mis-finanzas');
+    // CORRECCIÓN: Se cierra el acordeón de primeros pasos al completar el onboarding
+    setOpenAccordionId(null);
   };
 
   const handleFinancialDataLoaded = useCallback((data: { supermarketSpending: number }) => {
@@ -202,7 +203,6 @@ export default function HomePage() {
         <main className="flex-1 flex flex-col items-center p-4 md:p-8 text-white font-sans md:ml-20 pt-20 overflow-x-hidden">
         <HeroSection />
 
-          {/* 3. BOTÓN, LINK A CREADORES Y LINK A PRESENTACIÓN AÑADIDOS */}
           <div className="flex flex-col sm:flex-row items-center gap-x-6 gap-y-3 mb-10 w-full max-w-4xl justify-center flex-wrap">
             <button
                 onClick={() => setIsUpdatesModalOpen(true)}
