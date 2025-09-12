@@ -4,17 +4,18 @@ import io
 import textwrap
 import json
 import asyncio
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import speech
 from sqlalchemy.orm import Session
 from typing import List
 
 from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement, CultivationPlan
-from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
+from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse, CultivationPlanResponse, CultivationPlanResult, HarvestLogInput, HarvestLogResponse, CultivationTaskInput, CultivationTaskResponse, FamilyPlanRequest, FamilyPlanResponse
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement, generate_plan_with_gemini, validate_parameters_with_gemini, generate_family_plan_with_gemini
 from dependencies import model_chat
 from routers import finance, cultivation, family, market_data, gamification
+import routers.services as services # Importamos el nuevo módulo de servicios
 
 app = FastAPI(title="Resi API", version="4.5.0")
 
