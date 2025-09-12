@@ -9,8 +9,8 @@ from sqlalchemy import func
 from datetime import datetime
 
 from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
-from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest
-from main import model_plan_generator, model_validator
+from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse
+from main import model_plan_generator, model_validator, model_family_plan_generator
 
 def get_db():
     db = SessionLocal()
@@ -222,3 +222,48 @@ def validate_parameters_with_gemini(request: ValidateParamsRequest):
     except Exception as e:
         print(f"Error al validar parámetros con Gemini: {e}")
         raise HTTPException(status_code=500, detail="Error de la IA al validar los parámetros.")
+
+def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
+    """
+    Función que genera un plan familiar dinámicamente con la IA de Gemini.
+    """
+    global model_family_plan_generator
+
+    # Se obtienen los datos financieros del usuario para dar un consejo de presupuesto más preciso
+    user_email = db.query(User).filter(User.email == request.user_email).first().email
+    user_income = db.query(BudgetItem).filter(BudgetItem.user_email == user_email, BudgetItem.category == "_income").first().allocated_amount
+    
+    plan_prompt = textwrap.dedent(f"""
+    Basado en los siguientes datos familiares:
+    - Miembros de la familia: {json.dumps([m.dict() for m in request.familyMembers])}
+    - Preferencias dietarias: {request.dietaryPreferences}
+    - Estilo de cocina: {request.cookingStyle}
+    - Metas financieras: {request.financialGoals}
+    - Actividades de ocio: {request.leisureActivities}
+    - Ingreso mensual familiar: ${user_income:,.0f}
+
+    Actúa como un experto en planificación familiar y diseña un plan semanal (menú y actividades) y un consejo de presupuesto. El plan debe tener la siguiente estructura JSON y NO DEBE incluir ninguna otra información.
+
+    {{
+      "mealPlan": [
+        {{"day": "Lunes", "meal": "Sugerencia de comida", "tags": ["ej: rápido", "económico"]}},
+        ...
+      ],
+      "budgetSuggestion": "Un consejo de presupuesto personalizado y accionable, relacionado con sus metas financieras y el ingreso mensual.",
+      "leisureSuggestion": {{"activity": "Sugerencia de actividad", "cost": "costo estimado (ej: nulo, bajo, medio)", "description": "Una breve descripción de la actividad."}}
+    }}
+
+    Asegúrate de que el plan de comidas y las sugerencias de ocio sean adecuadas para la cantidad y edades de los miembros de la familia. El consejo de presupuesto debe ser muy específico y útil, utilizando el ingreso mensual como base.
+    """)
+
+    try:
+        response = model_family_plan_generator.generate_content(plan_prompt, generation_config={"response_mime_type": "application/json"})
+        parsed_plan = json.loads(response.text)
+        
+        # Validar el plan generado con el esquema Pydantic
+        validated_plan = FamilyPlanResponse(**parsed_plan)
+        return validated_plan
+        
+    except Exception as e:
+        print(f"Error al generar el plan familiar con Gemini: {e}")
+        raise HTTPException(status_code=500, detail="Error de la IA al generar el plan familiar.")

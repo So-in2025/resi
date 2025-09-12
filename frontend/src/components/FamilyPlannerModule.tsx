@@ -29,7 +29,7 @@ export default function FamilyPlannerModule() {
   const [step, setStep] = useState(1);
   const totalSteps = 5;
 
-  const [familyMembers, setFamilyMembers] = useState([{ age: '', role: 'Adulto' }]);
+  const [familyMembers, setFamilyMembers] = useState([{ age: '', role: 'Adulto', extra_details: '' }]);
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([]);
   const [cookingStyle, setCookingStyle] = useState('');
   const [financialGoals, setFinancialGoals] = useState('');
@@ -67,7 +67,7 @@ export default function FamilyPlannerModule() {
     setFamilyMembers(newMembers);
   };
 
-  const addMember = () => setFamilyMembers([...familyMembers, { age: '', role: 'Niño/a' }]);
+  const addMember = () => setFamilyMembers([...familyMembers, { age: '', role: 'Niño/a', extra_details: '' }]);
   const removeMember = (index: number) => setFamilyMembers(familyMembers.filter((_, i) => i !== index));
   const handleCheckboxChange = (setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
     setter(prev => prev.includes(value) ? prev.filter(item => item !== value) : [...prev, value]);
@@ -111,7 +111,7 @@ export default function FamilyPlannerModule() {
   const renderStepContent = () => {
     switch(step) {
         case 1:
-            return ( <div className="space-y-4 animate-fade-in"> <h3 className="text-2xl font-bold text-green-400 flex items-center gap-2"><FaUsers />Paso 1: El Equipo</h3> <p className="text-gray-300">Contale a Resi quiénes forman parte de tu familia.</p> {familyMembers.map((member, index) => ( <div key={index} className="flex items-center gap-2 bg-gray-700 p-2 rounded-lg"> <select value={member.role} onChange={e => handleMemberChange(index, 'role', e.target.value)} className="bg-gray-800 p-2 rounded-md border border-gray-600"> <option>Adulto</option> <option>Niño/a</option> </select> <input type="number" placeholder="Edad" value={member.age} onChange={e => handleMemberChange(index, 'age', e.target.value)} className="bg-gray-800 p-2 rounded-md w-full border border-gray-600" /> {familyMembers.length > 1 && <button onClick={() => removeMember(index)} className="p-2 text-red-400 hover:text-red-300"><FaTrashAlt /></button>} </div> ))} <button onClick={addMember} className="w-full flex items-center justify-center gap-2 p-2 bg-green-800 hover:bg-green-700 rounded-md font-semibold"><FaUserPlus /> Agregar Miembro</button> </div> );
+            return ( <div className="space-y-4 animate-fade-in"> <h3 className="text-2xl font-bold text-green-400 flex items-center gap-2"><FaUsers />Paso 1: El Equipo</h3> <p className="text-gray-300">Contale a Resi quiénes forman parte de tu familia. Agrega cualquier detalle que deba tener en cuenta para el plan.</p> {familyMembers.map((member, index) => ( <div key={index} className="flex flex-col md:flex-row items-start md:items-center gap-2 bg-gray-700 p-2 rounded-lg"> <select value={member.role} onChange={e => handleMemberChange(index, 'role', e.target.value)} className="bg-gray-800 p-2 rounded-md border border-gray-600"> <option>Adulto</option> <option>Niño/a</option> </select> <input type="number" placeholder="Edad" value={member.age} onChange={e => handleMemberChange(index, 'age', e.target.value)} className="bg-gray-800 p-2 rounded-md w-full md:w-24 border border-gray-600" /> <input type="text" placeholder="Detalles adicionales (ej: usa silla de ruedas)" value={member.extra_details} onChange={e => handleMemberChange(index, 'extra_details', e.target.value)} className="bg-gray-800 p-2 rounded-md w-full border border-gray-600" /> {familyMembers.length > 1 && <button onClick={() => removeMember(index)} className="p-2 text-red-400 hover:text-red-300"><FaTrashAlt /></button>} </div> ))} <button onClick={addMember} className="w-full flex items-center justify-center gap-2 p-2 bg-green-800 hover:bg-green-700 rounded-md font-semibold"><FaUserPlus /> Agregar Miembro</button> </div> );
         case 2:
             return ( <div className="space-y-4 animate-fade-in"> <h3 className="text-2xl font-bold text-green-400 flex items-center gap-2"><FaAppleAlt />Paso 2: La Mesa</h3> <p className="text-gray-300">¿Hay alguna preferencia o restricción alimentaria?</p> <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"> {['Vegetariano', 'Sin TACC (celíaco)', 'Sin Lactosa', 'Bajo en Sodio'].map(pref => ( <label key={pref} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${dietaryPreferences.includes(pref) ? 'bg-green-500 text-white shadow-lg' : 'bg-gray-700 hover:bg-gray-600'}`}> <input type="checkbox" checked={dietaryPreferences.includes(pref)} onChange={() => handleCheckboxChange(setDietaryPreferences, pref)} className="w-5 h-5 text-green-600 bg-gray-900 border-gray-600 rounded focus:ring-green-500 focus:ring-2"/> <span className="font-medium">{pref}</span> </label> ))} </div> </div> );
         case 3:

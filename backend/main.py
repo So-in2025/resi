@@ -13,7 +13,7 @@ from typing import List
 
 from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement, CultivationPlan
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
-from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement, generate_plan_with_gemini, validate_parameters_with_gemini
+from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement, generate_plan_with_gemini, validate_parameters_with_gemini, generate_family_plan_with_gemini
 from routers import finance, cultivation, family, market_data, gamification
 
 app = FastAPI(title="Resi API", version="4.5.0")
@@ -23,7 +23,8 @@ app = FastAPI(title="Resi API", version="4.5.0")
 speech_client = None
 model_chat = None
 model_plan_generator = None
-model_validator = None # ¡NUEVO! Modelo para validar parámetros
+model_validator = None 
+model_family_plan_generator = None # ¡NUEVO! Modelo para generar planes familiares
 
 # CORRECCIÓN: Evento de inicio síncrono
 @app.on_event("startup")
@@ -32,7 +33,7 @@ def startup_event():
     Esta función se ejecuta una sola vez cuando la aplicación arranca.
     Es el lugar SEGURO para inicializar clientes que hacen llamadas de red.
     """
-    global speech_client, model_chat, model_plan_generator, model_validator
+    global speech_client, model_chat, model_plan_generator, model_validator, model_family_plan_generator
     
     # 1. Crear tablas de la base de datos
     create_db_and_tables()
@@ -83,12 +84,17 @@ def startup_event():
     )
     model_plan_generator = genai.GenerativeModel(
         model_name="gemini-1.5-flash-latest",
-        system_instruction="Tu Ãºnica tarea es actuar como un experto en cultivo, diseÃ±ando planes de cultivo detallados en formato JSON. DEBES seguir las instrucciones de formato y contenido al pie de la letra."
+        system_instruction="Tu única tarea es actuar como un experto en cultivo, diseñando planes de cultivo detallados en formato JSON. DEBES seguir las instrucciones de formato y contenido al pie de la letra."
     )
-    # Inicializar el modelo para validar parÃ¡metros
+    # Inicializar el modelo para validar parámetros
     model_validator = genai.GenerativeModel(
         model_name="gemini-1.5-flash-latest",
-        system_instruction="Tu Ãºnica tarea es analizar los parÃ¡metros de cultivo de un usuario y generar un JSON con recomendaciones especÃ­ficas, rÃ¡pidas y prÃ¡cticas. DEBES responder solo con el JSON y nada mÃ¡s."
+        system_instruction="Tu única tarea es analizar los parámetros de cultivo de un usuario y generar un JSON con recomendaciones específicas, rápidas y prácticas. DEBES responder solo con el JSON y nada más."
+    )
+    # Inicializar el nuevo modelo para generar planes familiares
+    model_family_plan_generator = genai.GenerativeModel(
+        model_name="gemini-1.5-flash-latest",
+        system_instruction="Tu única tarea es actuar como un experto en planificación familiar, creando planes personalizados en formato JSON."
     )
 
 origins = [
