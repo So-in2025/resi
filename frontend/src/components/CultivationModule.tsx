@@ -1,10 +1,11 @@
 // En: frontend/src/components/CultivationModule.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   FaSeedling, FaCalculator, FaTools, FaBook, FaRobot,
-  FaCheckCircle, FaExclamationCircle, FaDollarSign, FaBoxes, FaLeaf, FaMicrochip, FaDownload, FaImage, FaTrashAlt, FaSun, FaLightbulb, FaSmile, FaMapMarkerAlt
+  FaCheckCircle, FaExclamationCircle, FaDollarSign, FaBoxes, FaLeaf, FaMicrochip, FaDownload, FaImage, FaTrashAlt, FaSun, FaLightbulb, FaSmile, FaMapMarkerAlt,
+  FaCalendarAlt, FaChartBar, FaClipboardCheck
 } from "react-icons/fa";
 import toast from 'react-hot-toast';
 import apiClient from '@/lib/apiClient';
@@ -105,7 +106,7 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
       }
     };
     fetchLatestPlan();
-  }, [session]);
+  }, [session, activeTab]); 
   
 
   const generateAiPlan = async () => {
@@ -133,6 +134,9 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
             headers: { 'Authorization': `Bearer ${session.user.email}` }
         });
         setAiPlanResult(response.data);
+        // CORRECCIÓN: Al generar un nuevo plan, cambiamos a la pestaña de "Plan Guardado" y actualizamos el estado.
+        setLatestPlan({ plan_data: response.data, created_at: new Date().toISOString() });
+        setActiveTab('plan-guardado');
         toast.success('¡Plan generado con éxito!', { id: toastId });
     } catch (error: any) {
         // CORRECCIÓN: Se maneja el error para mostrar el mensaje específico
