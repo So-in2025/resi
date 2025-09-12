@@ -16,6 +16,8 @@ from sqlalchemy.orm import selectinload
 
 from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
 from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse, ResilienceSummary
+# Se eliminó la importación de 'main', evitando el error de dependencia circular
+from routers import market_data
 
 # --- CONFIGURACIÓN E INICIALIZACIÓN DE LOS MODELOS DE IA ---
 # Se movió aquí para evitar la dependencia circular.
@@ -327,3 +329,24 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
     except Exception as e:
         print(f"Error al generar el plan familiar con Gemini: {e}")
         raise HTTPException(status_code=500, detail="Error de la IA al generar el plan familiar.")
+
+def get_dashboard_summary(db: Session, user: User):
+    try:
+        budget_items = db.query(BudgetItem).filter(BudgetItem.user_email == user.email).all()
+        income = next((item.allocated_amount for item in budget_items if item.category == "_income"), 0)
+        today = datetime.utcnow()
+        start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        expenses_this_month = db.query(Expense).filter(Expense.date >= start_of_month, Expense.user_email == user.email).all()
+        total_spent = sum(expense.amount for expense in expenses_this_month)
+        summary = {}
+        icons = {'Vivienda': '🏠', 'Servicios Básicos': '💡', 'Supermercado': '🛒', 'Kioscos': '🍫', 'Transporte': '🚗', 'Salud': '⚕️', 'Deudas': '💳', 'Préstamos': '🏦', 'Entretenimiento': '🎬', 'Hijos': '🧑\u200d🍼', 'Mascotas': '🐾', 'Cuidado Personal': '🧴', 'Vestimenta': '👕', 'Ahorro': '💰', 'Inversión': '📈', 'Otros': '💸'}
+        for budget_item in budget_items:
+            if budget_item.category == "_income": continue
+            summary[budget_item.category] = { "category": budget_item.category, "allocated": budget_item.allocated_amount, "spent": 0, "icon": icons.get(budget_item.category, '💸')}
+        for expense in expenses_this_month:
+            cat_capitalized = expense.category.capitalize()
+            if cat_capitalized in summary:
+                summary[cat_capitalized]["spent"] += expense.amount
+        return {"income": income, "total_spent": total_spent, "summary": list(summary.values()), "has_completed_onboarding": user.has_completed_onboarding}
+    except Exception:
+        return {"income": 0, "total_spent": 0, "summary": [], "has_completed_onboarding": user.has_completed_onboarding}
