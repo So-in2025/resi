@@ -320,18 +320,25 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session, us
     - Ingreso mensual familiar: ${user_income:,.0f}
     - Detalles adicionales del usuario: {user.long_term_goals} y {user.risk_profile}
 
-    Actúa como un experto en planificación familiar y diseña un plan semanal (menú y actividades) y un consejo de presupuesto. El plan debe tener la siguiente estructura JSON y NO DEBE incluir ninguna otra información.
+    Actúa como un experto en planificación familiar y diseña un plan semanal completo de comidas, ahorro y ocio.
+    El plan debe tener la siguiente estructura JSON y NO DEBE incluir ninguna otra información.
 
     {{
       "mealPlan": [
-        {{"day": "Lunes", "meal": "Sugerencia de comida", "tags": ["ej: rápido", "económico"]}},
-        ...
+        {{
+          "day": "Lunes", 
+          "meal": "Sugerencia de comida (ej: Milanesas de soja con puré)",
+          "tags": ["ej: rápido", "económico"],
+          "ingredients": ["Ingrediente 1", "Ingrediente 2", "etc."],
+          "instructions": ["Paso 1", "Paso 2", "etc."]
+        }},
+        ... (Para cada día de la semana)
       ],
       "budgetSuggestion": "Un consejo de presupuesto personalizado y accionable, relacionado con sus metas financieras y el ingreso mensual.",
       "leisureSuggestion": {{"activity": "Sugerencia de actividad", "cost": "costo estimado (ej: nulo, bajo, medio)", "description": "Una breve descripción de la actividad."}}
     }}
 
-    Asegúrate de que el plan de comidas y las sugerencias de ocio sean adecuadas para la cantidad y edades de los miembros de la familia, y que tengan en cuenta los detalles adicionales y metas del usuario.
+    Asegúrate de que el plan de comidas y las sugerencias de ocio sean adecuados para la cantidad y edades de los miembros de la familia, y que tengan en cuenta los detalles adicionales y metas del usuario.
     El consejo de presupuesto debe ser muy específico y útil, utilizando el ingreso mensual como base.
     """)
 

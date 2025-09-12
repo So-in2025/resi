@@ -3,9 +3,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession, signIn } from 'next-auth/react';
-import { FaUsers, FaAppleAlt, FaPiggyBank, FaGamepad, FaArrowLeft, FaArrowRight, FaRobot, FaMicrochip, FaUserPlus, FaTrashAlt, FaUtensils, FaSave, FaClipboardList } from 'react-icons/fa';
+import { FaUsers, FaAppleAlt, FaPiggyBank, FaGamepad, FaArrowLeft, FaArrowRight, FaRobot, FaMicrochip, FaUserPlus, FaTrashAlt, FaUtensils, FaSave, FaClipboardList, FaFileAlt, FaListOl } from 'react-icons/fa';
 import apiClient from '@/lib/apiClient';
 import toast from 'react-hot-toast';
+import Modal from './Modal';
+import Accordion from './Accordion';
 
 const StepIndicator = ({ currentStep, totalSteps }: { currentStep: number, totalSteps: number }) => (
   <div className="flex justify-center items-center mb-8">
@@ -20,7 +22,7 @@ const StepIndicator = ({ currentStep, totalSteps }: { currentStep: number, total
   </div>
 );
 
-interface MealPlanItem { day: string; meal: string; tags: string[]; }
+interface MealPlanItem { day: string; meal: string; tags: string[]; ingredients: string[]; instructions: string[]; }
 interface LeisureSuggestion { activity: string; cost: string; description: string; }
 interface AiPlan { mealPlan: MealPlanItem[]; budgetSuggestion: string; leisureSuggestion: LeisureSuggestion; }
 
@@ -39,11 +41,14 @@ export default function FamilyPlannerModule() {
   const [aiPlan, setAiPlan] = useState<AiPlan | null>(null);
   const [activeSection, setActiveSection] = useState<'generatePlan' | 'savedPlan'>('generatePlan');
 
+  // NUEVO: Estados para el modal de la receta
+  const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
+  const [selectedMeal, setSelectedMeal] = useState<MealPlanItem | null>(null);
+
   useEffect(() => {
     const fetchLatestPlan = async () => {
         if (session?.user?.email) {
             try {
-                // CORRECCIÓN: Se ajusta la URL para que coincida con el backend
                 const response = await apiClient.get('/family-plan/latest', {
                     headers: { 'Authorization': `Bearer ${session.user.email}` }
                 });
@@ -95,7 +100,6 @@ export default function FamilyPlannerModule() {
     };
 
     try {
-      // CORRECCIÓN: Se ajusta la URL para que coincida con el backend
       const response = await apiClient.post('/family-plan/generate', planRequest, {
         headers: { 'Authorization': `Bearer ${session.user.email}` }
       });
@@ -111,6 +115,17 @@ export default function FamilyPlannerModule() {
     }
   };
 
+  // NUEVO: Funciones para el modal de receta
+  const handleOpenRecipeModal = (meal: MealPlanItem) => {
+    setSelectedMeal(meal);
+    setIsRecipeModalOpen(true);
+  };
+
+  const handleCloseRecipeModal = () => {
+    setIsRecipeModalOpen(false);
+    setSelectedMeal(null);
+  };
+
   const renderPlanView = () => (
     <div className="space-y-6 animate-fade-in">
         <h3 className="text-3xl font-bold text-green-400 text-center flex items-center justify-center gap-2">
@@ -120,8 +135,13 @@ export default function FamilyPlannerModule() {
             <div className="space-y-4 text-left">
                 <div className="bg-gray-700 p-4 rounded-lg">
                     <h4 className="font-bold text-white text-lg mb-2 flex items-center gap-2"><FaUtensils/> Menú Semanal Sugerido</h4>
-                    <ul className="list-disc list-inside text-gray-300 space-y-1">
-                        {aiPlan.mealPlan.map((item, index) => <li key={index}><span className="font-semibold">{item.day}:</span> {item.meal}</li>)}
+                    <ul className="space-y-2">
+                        {aiPlan.mealPlan.map((item, index) => (
+                            <li key={index} className="bg-gray-600 p-3 rounded-md flex justify-between items-center">
+                                <span className="font-semibold text-white">{item.day}: <span className="font-normal text-gray-200">{item.meal}</span></span>
+                                <button onClick={() => handleOpenRecipeModal(item)} className="text-sm px-3 py-1 bg-green-500 rounded-lg hover:bg-green-600 transition-colors">Ver Receta</button>
+                            </li>
+                        ))}
                     </ul>
                 </div>
                 <div className="bg-gray-700 p-4 rounded-lg">
@@ -214,6 +234,26 @@ export default function FamilyPlannerModule() {
         {activeSection === 'savedPlan' && renderPlanView()}
         </>
       )}
+
+      {/* NUEVO: Modal para mostrar la receta */}
+      <Modal isOpen={isRecipeModalOpen} onClose={handleCloseRecipeModal} title={selectedMeal?.meal || "Receta"}>
+          {selectedMeal && (
+              <div className="space-y-4 text-gray-300">
+                  <h4 className="text-xl font-bold text-white flex items-center gap-2"><FaFileAlt/> Ingredientes</h4>
+                  <ul className="list-disc list-inside space-y-1 pl-4">
+                      {selectedMeal.ingredients.map((ing, i) => (
+                          <li key={i}>{ing}</li>
+                      ))}
+                  </ul>
+                  <h4 className="text-xl font-bold text-white flex items-center gap-2 pt-4"><FaListOl/> Instrucciones</h4>
+                  <ol className="list-decimal list-inside space-y-1 pl-4">
+                      {selectedMeal.instructions.map((inst, i) => (
+                          <li key={i}>{inst}</li>
+                      ))}
+                  </ol>
+              </div>
+          )}
+      </Modal>
     </div>
   );
 }

@@ -210,13 +210,12 @@ def validate_parameters_with_gemini(request: ValidateParamsRequest):
         print(f"Error al validar parámetros con Gemini: {e}")
         raise HTTPException(status_code=500, detail="Error de la IA al validar los parámetros.")
 
-def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
+def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session, user: User):
     """
     Función que genera un plan familiar dinámicamente con la IA de Gemini.
     """
     global model_family_plan_generator
     
-    user = db.query(User).filter(User.email == request.user_email).first()
     user_income = db.query(BudgetItem).filter(BudgetItem.user_email == user.email, BudgetItem.category == "_income").first().allocated_amount
     
     plan_prompt = textwrap.dedent(f"""
@@ -229,18 +228,25 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
     - Ingreso mensual familiar: ${user_income:,.0f}
     - Detalles adicionales del usuario: {user.long_term_goals} y {user.risk_profile}
 
-    Actúa como un experto en planificación familiar y diseña un plan semanal (menú y actividades) y un consejo de presupuesto. El plan debe tener la siguiente estructura JSON y NO DEBE incluir ninguna otra información.
+    Actúa como un experto en planificación familiar y diseña un plan semanal completo de comidas, ahorro y ocio.
+    El plan debe tener la siguiente estructura JSON y NO DEBE incluir ninguna otra información.
 
     {{
       "mealPlan": [
-        {{"day": "Lunes", "meal": "Sugerencia de comida", "tags": ["ej: rápido", "económico"]}},
-        ...
+        {{
+          "day": "Lunes", 
+          "meal": "Sugerencia de comida (ej: Milanesas de soja con puré)",
+          "tags": ["ej: rápido", "económico"],
+          "ingredients": ["Ingrediente 1", "Ingrediente 2", "etc."],
+          "instructions": ["Paso 1", "Paso 2", "etc."]
+        }},
+        ... (Para cada día de la semana)
       ],
       "budgetSuggestion": "Un consejo de presupuesto personalizado y accionable, relacionado con sus metas financieras y el ingreso mensual.",
       "leisureSuggestion": {{"activity": "Sugerencia de actividad", "cost": "costo estimado (ej: nulo, bajo, medio)", "description": "Una breve descripción de la actividad."}}
     }}
 
-    Asegúrate de que el plan de comidas y las sugerencias de ocio sean adecuadas para la cantidad y edades de los miembros de la familia, y que tengan en cuenta los detalles adicionales y metas del usuario.
+    Asegúrate de que el plan de comidas y las sugerencias de ocio sean adecuados para la cantidad y edades de los miembros de la familia, y que tengan en cuenta los detalles adicionales y metas del usuario.
     El consejo de presupuesto debe ser muy específico y útil, utilizando el ingreso mensual como base.
     """)
 
