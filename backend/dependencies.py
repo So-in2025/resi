@@ -236,21 +236,29 @@ def generate_plan_with_gemini(request: CultivationPlanRequest, db: Session, user
     Asegúrate de que la "projectedSavings" se adapte al `supermarketSpending` del usuario. Sé creativo, pero mantente realista.
     """)
     
-    try:
-        response = model_plan_generator.generate_content(plan_prompt)
-        # CORRECCIÓN: Verificar si la respuesta es nula o vacía antes de procesarla.
-        if not response.text:
-            raise HTTPException(status_code=500, detail="La IA no devolvió una respuesta válida. Por favor, inténtalo de nuevo.")
+    for _ in range(3):  # Intentar hasta 3 veces
+        try:
+            response = model_plan_generator.generate_content(plan_prompt, generation_config={"response_mime_type": "application/json"})
+            if not response.text:
+                continue  # Reintentar si la respuesta es vacía
+            
+            # Limpiar la respuesta de posibles caracteres extra
+            raw_text = response.text.strip().replace('```json', '').replace('```', '').strip()
+            parsed_plan = json.loads(raw_text)
+            
+            validated_plan = CultivationPlanResult(**parsed_plan)
+            return validated_plan
+        
+        except (json.JSONDecodeError, ValidationError) as e:
+            print(f"Error al procesar la respuesta de la IA (reintento en curso): {e}")
+            continue  # Reintentar en caso de error de formato
+        except Exception as e:
+            print(f"Error inesperado con la IA: {e}")
+            raise HTTPException(status_code=500, detail=f"Error inesperado de la IA al generar el plan de cultivo. Causa: {e}")
 
-        parsed_plan = json.loads(response.text)
-        
-        validated_plan = CultivationPlanResult(**parsed_plan)
-        return validated_plan
-        
-    except (json.JSONDecodeError, ValidationError, Exception) as e:
-        print(f"Error al generar el plan de cultivo con Gemini: {e}")
-        # CORRECCIÓN: Devolver el mensaje de error para que el frontend lo pueda mostrar.
-        raise HTTPException(status_code=500, detail=f"Error de la IA al generar el plan de cultivo. Causa: {e}")
+    # Si los reintentos fallan, levantar una excepción final
+    raise HTTPException(status_code=500, detail="La IA no pudo generar una respuesta válida después de varios intentos.")
+
 
 def validate_parameters_with_gemini(request: ValidateParamsRequest):
     """
@@ -327,16 +335,27 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session, us
     El consejo de presupuesto debe ser muy específico y útil, utilizando el ingreso mensual como base.
     """)
 
-    try:
-        response = model_family_plan_generator.generate_content(plan_prompt, generation_config={"response_mime_type": "application/json"})
-        parsed_plan = json.loads(response.text)
-        
-        validated_plan = FamilyPlanResponse(**parsed_plan)
-        return validated_plan
-        
-    except (json.JSONDecodeError, ValidationError, Exception) as e:
-        print(f"Error al generar el plan familiar con Gemini: {e}")
-        raise HTTPException(status_code=500, detail="Error de la IA al generar el plan familiar.")
+    for _ in range(3):  # Intentar hasta 3 veces
+        try:
+            response = model_family_plan_generator.generate_content(plan_prompt, generation_config={"response_mime_type": "application/json"})
+            if not response.text:
+                continue
+            
+            raw_text = response.text.strip().replace('```json', '').replace('```', '').strip()
+            parsed_plan = json.loads(raw_text)
+            
+            validated_plan = FamilyPlanResponse(**parsed_plan)
+            return validated_plan
+            
+        except (json.JSONDecodeError, ValidationError) as e:
+            print(f"Error al procesar la respuesta de la IA (reintento en curso): {e}")
+            continue
+        except Exception as e:
+            print(f"Error inesperado con la IA: {e}")
+            raise HTTPException(status_code=500, detail=f"Error inesperado de la IA al generar el plan familiar. Causa: {e}")
+    
+    raise HTTPException(status_code=500, detail="La IA no pudo generar una respuesta válida después de varios intentos.")
+
 
 def get_dashboard_summary(db: Session, user: User):
     try:
