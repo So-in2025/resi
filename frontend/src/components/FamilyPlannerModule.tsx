@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession, signIn } from 'next-auth/react';
-import { FaUsers, FaAppleAlt, FaPiggyBank, FaGamepad, FaArrowLeft, FaArrowRight, FaRobot, FaMicrochip, FaUserPlus, FaTrashAlt, FaUtensils } from 'react-icons/fa';
+import { FaUsers, FaAppleAlt, FaPiggyBank, FaGamepad, FaArrowLeft, FaArrowRight, FaRobot, FaMicrochip, FaUserPlus, FaTrashAlt, FaUtensils, FaSave, FaClipboardList } from 'react-icons/fa';
 import apiClient from '@/lib/apiClient';
 import toast from 'react-hot-toast';
 
@@ -37,6 +37,7 @@ export default function FamilyPlannerModule() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [aiPlan, setAiPlan] = useState<AiPlan | null>(null);
+  const [activeSection, setActiveSection] = useState<'generatePlan' | 'savedPlan'>('generatePlan');
 
   useEffect(() => {
     const fetchLatestPlan = async () => {
@@ -48,7 +49,7 @@ export default function FamilyPlannerModule() {
                 });
                 if (response.data) {
                     setAiPlan(response.data);
-                    setStep(totalSteps + 1);
+                    setActiveSection('savedPlan');
                 }
             } catch (error) {
                 console.log("No se encontró un plan familiar previo. Se iniciará el flujo normal.");
@@ -74,7 +75,7 @@ export default function FamilyPlannerModule() {
     setter(prev => prev.includes(value) ? prev.filter(item => item !== value) : [...prev, value]);
   };
 
-  const handleNext = () => setStep(prev => Math.min(prev + 1, totalSteps + 1));
+  const handleNext = () => setStep(prev => Math.min(prev + 1, totalSteps));
   const handleBack = () => setStep(prev => Math.max(prev - 1, 1));
   
   const generateFamilyPlan = async () => {
@@ -83,7 +84,6 @@ export default function FamilyPlannerModule() {
       return;
     }
     setIsLoading(true);
-    setAiPlan(null);
     const toastId = toast.loading("Resi está creando el Mapa de Ruta para tu familia...");
 
     const planRequest = {
@@ -100,8 +100,9 @@ export default function FamilyPlannerModule() {
         headers: { 'Authorization': `Bearer ${session.user.email}` }
       });
       setAiPlan(response.data);
-      toast.success("¡Mapa de Ruta Familiar generado!", { id: toastId });
-      handleNext();
+      toast.success("¡Mapa de Ruta Familiar generado y guardado!", { id: toastId });
+      setActiveSection('savedPlan');
+      setStep(1); // Reiniciamos el stepper
     } catch (error) {
       console.error("Error al generar el plan familiar:", error);
       toast.error("Hubo un error al generar el plan.", { id: toastId });
@@ -110,7 +111,45 @@ export default function FamilyPlannerModule() {
     }
   };
 
-  const renderStepContent = () => {
+  const renderPlanView = () => (
+    <div className="space-y-6 animate-fade-in">
+        <h3 className="text-3xl font-bold text-green-400 text-center flex items-center justify-center gap-2">
+            <FaClipboardList /> Tu Plan Familiar Guardado
+        </h3>
+        {aiPlan ? (
+            <div className="space-y-4 text-left">
+                <div className="bg-gray-700 p-4 rounded-lg">
+                    <h4 className="font-bold text-white text-lg mb-2 flex items-center gap-2"><FaUtensils/> Menú Semanal Sugerido</h4>
+                    <ul className="list-disc list-inside text-gray-300 space-y-1">
+                        {aiPlan.mealPlan.map((item, index) => <li key={index}><span className="font-semibold">{item.day}:</span> {item.meal}</li>)}
+                    </ul>
+                </div>
+                <div className="bg-gray-700 p-4 rounded-lg">
+                    <h4 className="font-bold text-white text-lg mb-2 flex items-center gap-2"><FaPiggyBank/> Consejo de Ahorro</h4>
+                    <p className="text-gray-300">{aiPlan.budgetSuggestion}</p>
+                </div>
+                <div className="bg-gray-700 p-4 rounded-lg">
+                    <h4 className="font-bold text-white text-lg mb-2 flex items-center gap-2"><FaGamepad/> Actividad Recomendada</h4>
+                    <p className="text-gray-300"><span className="font-semibold">{aiPlan.leisureSuggestion.activity} (Costo: {aiPlan.leisureSuggestion.cost}):</span> {aiPlan.leisureSuggestion.description}</p>
+                </div>
+            </div>
+        ) : (
+             <div className="text-center text-gray-400 py-8">
+                <p>Aún no has generado ni guardado ningún plan familiar.</p>
+                <button onClick={() => setActiveSection('generatePlan')} className="mt-4 px-4 py-2 bg-blue-600 rounded-md hover:bg-blue-500 font-semibold flex items-center gap-2 mx-auto">
+                    <FaRobot /> Empezar a crear un plan
+                </button>
+             </div>
+        )}
+        <div className="flex justify-center mt-4">
+            <button onClick={() => setActiveSection('generatePlan')} className="p-2 bg-gray-600 hover:bg-gray-500 rounded-md font-semibold">
+                Crear un nuevo plan
+            </button>
+        </div>
+    </div>
+  );
+
+  const renderStepperContent = () => {
     switch(step) {
         case 1:
             return ( <div className="space-y-4 animate-fade-in"> <h3 className="text-2xl font-bold text-green-400 flex items-center gap-2"><FaUsers />Paso 1: El Equipo</h3> <p className="text-gray-300">Contale a Resi quiénes forman parte de tu familia. Agrega cualquier detalle que deba tener en cuenta para el plan.</p> {familyMembers.map((member, index) => ( <div key={index} className="flex flex-col md:flex-row items-start md:items-center gap-2 bg-gray-700 p-2 rounded-lg"> <select value={member.role} onChange={e => handleMemberChange(index, 'role', e.target.value)} className="bg-gray-800 p-2 rounded-md border border-gray-600"> <option>Adulto</option> <option>Niño/a</option> </select> <input type="number" placeholder="Edad" value={member.age} onChange={e => handleMemberChange(index, 'age', e.target.value)} className="bg-gray-800 p-2 rounded-md w-full md:w-24 border border-gray-600" /> <input type="text" placeholder="Detalles adicionales (ej: usa silla de ruedas)" value={member.extra_details} onChange={e => handleMemberChange(index, 'extra_details', e.target.value)} className="bg-gray-800 p-2 rounded-md w-full border border-gray-600" /> {familyMembers.length > 1 && <button onClick={() => removeMember(index)} className="p-2 text-red-400 hover:text-red-300"><FaTrashAlt /></button>} </div> ))} <button onClick={addMember} className="w-full flex items-center justify-center gap-2 p-2 bg-green-800 hover:bg-green-700 rounded-md font-semibold"><FaUserPlus /> Agregar Miembro</button> </div> );
@@ -122,8 +161,6 @@ export default function FamilyPlannerModule() {
             return ( <div className="space-y-4 animate-fade-in"> <h3 className="text-2xl font-bold text-green-400 flex items-center gap-2"><FaPiggyBank />Paso 4: Las Metas</h3> <p className="text-gray-300">¿Cuál es el principal objetivo financiero familiar para los próximos 6 meses?</p> <input type="text" placeholder="Ej: Ahorrar para las vacaciones, saldar la tarjeta..." value={financialGoals} onChange={e => setFinancialGoals(e.target.value)} className="bg-gray-700 p-3 rounded-md w-full border border-gray-600" /> </div> );
         case 5:
             return ( <div className="space-y-4 animate-fade-in"> <h3 className="text-2xl font-bold text-green-400 flex items-center gap-2"><FaGamepad />Paso 5: La Diversión</h3> <p className="text-gray-300">¿Qué actividades de ocio disfrutan más?</p> <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"> {['Aire Libre (parques, bici)', 'Juegos de Mesa', 'Películas y Series en casa', 'Manualidades / Cocina'].map(act => ( <label key={act} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${leisureActivities.includes(act) ? 'bg-green-500 text-white shadow-lg' : 'bg-gray-700 hover:bg-gray-600'}`}> <input type="checkbox" checked={leisureActivities.includes(act)} onChange={() => handleCheckboxChange(setLeisureActivities, act)} className="w-5 h-5 text-green-600 bg-gray-900 border-gray-600 rounded focus:ring-green-500 focus:ring-2"/> <span className="font-medium">{act}</span> </label> ))} </div> </div> );
-        case 6:
-            return ( <div className="space-y-6 animate-fade-in"> <h3 className="text-3xl font-bold text-green-400 text-center">🗺️ ¡Tu Mapa de Ruta Familiar!</h3> {aiPlan ? ( <div className="space-y-4 text-left"> <div className="bg-gray-700 p-4 rounded-lg"> <h4 className="font-bold text-white text-lg mb-2">🍴 Menú Semanal Sugerido</h4> <ul className="list-disc list-inside text-gray-300 space-y-1"> {aiPlan.mealPlan.map(item => <li key={item.day}><span className="font-semibold">{item.day}:</span> {item.meal}</li>)} </ul> </div> <div className="bg-gray-700 p-4 rounded-lg"> <h4 className="font-bold text-white text-lg mb-2">💰 Consejo de Ahorro</h4> <p className="text-gray-300">{aiPlan.budgetSuggestion}</p> </div> <div className="bg-gray-700 p-4 rounded-lg"> <h4 className="font-bold text-white text-lg mb-2">🎉 Actividad Recomendada</h4> <p className="text-gray-300"><span className="font-semibold">{aiPlan.leisureSuggestion.activity} (Costo: {aiPlan.leisureSuggestion.cost}):</span> {aiPlan.leisureSuggestion.description}</p> </div> </div> ) : <p className="text-center text-gray-400">Generando tu plan...</p>} <button onClick={() => { setAiPlan(null); setStep(1); }} className="w-full mt-4 p-2 bg-gray-600 hover:bg-gray-500 rounded-md font-semibold">Crear un nuevo plan</button> </div> );
         default: return null;
     }
   };
@@ -134,22 +171,49 @@ export default function FamilyPlannerModule() {
   
   return (
     <div className="bg-gray-800 rounded-lg p-6 md:p-8 text-white">
-      {step <= totalSteps && <StepIndicator currentStep={step} totalSteps={totalSteps} />}
-      <div className="min-h-[400px] flex flex-col justify-center">
-        {isLoading ? <div className="flex justify-center items-center"><FaMicrochip className="animate-spin text-4xl text-green-400"/></div> : renderStepContent()}
-      </div>
-      <div className="flex justify-between mt-8">
-        <button onClick={handleBack} disabled={step === 1 || step > totalSteps} className="px-6 py-2 bg-gray-600 rounded-md disabled:opacity-50 hover:bg-gray-500 font-semibold"><FaArrowLeft /></button>
-        {step <= totalSteps ? (
-          <button 
-            onClick={step === totalSteps ? generateFamilyPlan : handleNext} 
-            disabled={isLoading && step === totalSteps}
-            className="px-6 py-2 bg-green-600 rounded-md disabled:opacity-50 hover:bg-green-500 flex items-center gap-2 font-semibold"
-          >
-            {isLoading && step === totalSteps ? <><FaMicrochip className="animate-spin" /> Generando...</> : (step === totalSteps ? <>Generar Plan <FaRobot /></> : <>Siguiente <FaArrowRight /></>)}
-          </button>
-        ) : null}
-      </div>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-[400px]"><FaMicrochip className="animate-spin text-4xl text-green-400"/></div>
+      ) : (
+        <>
+        <div className="flex justify-center gap-4 mb-8">
+            <button
+                onClick={() => setActiveSection('generatePlan')}
+                className={`px-4 py-2 font-semibold rounded-md transition-colors ${activeSection === 'generatePlan' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+            >
+                Crear Nuevo Plan
+            </button>
+            <button
+                onClick={() => setActiveSection('savedPlan')}
+                className={`px-4 py-2 font-semibold rounded-md transition-colors ${activeSection === 'savedPlan' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+            >
+                Ver Plan Guardado
+            </button>
+        </div>
+
+        {activeSection === 'generatePlan' && (
+            <>
+                <StepIndicator currentStep={step} totalSteps={totalSteps} />
+                <div className="min-h-[400px] flex flex-col justify-center">
+                    {renderStepperContent()}
+                </div>
+                <div className="flex justify-between mt-8">
+                    <button onClick={handleBack} disabled={step === 1} className="px-6 py-2 bg-gray-600 rounded-md disabled:opacity-50 hover:bg-gray-500 font-semibold"><FaArrowLeft /></button>
+                    {step < totalSteps ? (
+                        <button onClick={handleNext} className="px-6 py-2 bg-green-600 rounded-md disabled:opacity-50 hover:bg-green-500 flex items-center gap-2 font-semibold">
+                            Siguiente <FaArrowRight />
+                        </button>
+                    ) : (
+                        <button onClick={generateFamilyPlan} className="px-6 py-2 bg-green-600 rounded-md disabled:opacity-50 hover:bg-green-500 flex items-center gap-2 font-semibold">
+                            Guardar Plan <FaSave />
+                        </button>
+                    )}
+                </div>
+            </>
+        )}
+
+        {activeSection === 'savedPlan' && renderPlanView()}
+        </>
+      )}
     </div>
   );
 }

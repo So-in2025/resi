@@ -39,27 +39,72 @@ const HeroSection = () => (
 
 const UpdatesLogModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void; }) => (
     <Modal isOpen={isOpen} onClose={onClose} title="Historial de Actualizaciones">
-        <div className="text-left text-gray-300 max-h-96 overflow-y-auto pr-4">
-            <div className="mb-6">
-                <h3 className="text-xl font-semibold text-green-400 mb-2">Septiembre 2025 - Ruta 2: Conexión con el mundo real</h3>
-                <ul className="list-disc list-inside space-y-1 text-gray-300">
-                    <li><span className="font-semibold text-white">APIs Externas:</span> Se implementó un nuevo módulo (`market_data.py`) para consumir APIs de datos económicos.</li>
-                    <li><span className="font-semibold text-white">IA en Tiempo Real:</span> La inteligencia artificial ahora integra datos económicos actualizados en sus respuestas.</li>
-                    <li><span className="font-semibold text-white">Contexto Mejorado:</span> El endpoint de chat fue actualizado para fusionar el contexto del usuario con los datos del mundo real.</li>
+    <div className="text-left text-gray-300 max-h-96 overflow-y-auto pr-4">
+        {/* Sección: Visión General y Propuesta de Valor */}
+        <div className="mb-6">
+            <h3 className="text-xl font-semibold text-green-400 mb-2">Visión General: Construyendo Resiliencia</h3>
+            <p className="text-gray-300">
+                Resi es tu compañero digital para fortalecer tu economía y bienestar. Nuestra misión es simple: empoderarte con herramientas inteligentes y personalizadas que te ayuden a tomar el control de tu dinero, producir tus propios alimentos y planificar el futuro de tu familia. Lo hacemos a través de una experiencia de usuario única, potenciada por inteligencia artificial y una comunidad activa.
+            </p>
+        </div>
+
+        {/* Sección: Hitos Clave de Desarrollo */}
+        <div className="mb-6">
+            <h3 className="text-xl font-semibold text-green-400 mb-2">Hitos del Proyecto: Un Camino en Crecimiento</h3>
+            
+            {/* Hito 1 */}
+            <div className="mb-4">
+                <h4 className="font-semibold text-white">Fase 1: Asistencia a Medida</h4>
+                <p className="text-gray-400">Creamos las bases para que Resi entienda tus necesidades de manera única.</p>
+                <ul className="list-disc list-inside space-y-1 text-gray-400 mt-2">
+                    <li><span className="font-semibold text-white">Perfil Inteligente:</span> Al iniciar, Resi te conoce a fondo con un proceso guiado que define tu perfil financiero y tus metas a largo plazo.</li>
+                    <li><span className="font-semibold text-white">Planificación Dinámica:</span> Desarrollamos herramientas para que planifiques tu presupuesto y tus metas de ahorro, siempre con la posibilidad de ajustar el rumbo.</li>
+                    <li><span className="font-semibold text-white">IA Personalizada:</span> El motor de inteligencia artificial fue diseñado para darte consejos que realmente se adapten a tu situación.</li>
                 </ul>
             </div>
-            <div className="mb-6">
-                <h3 className="text-xl font-semibold text-gray-400 mb-2">Septiembre 2025 - Ruta 1: Hiper-personalización</h3>
-                <ul className="list-disc list-inside space-y-1 text-gray-400">
-                    <li><span className="font-semibold text-white">Onboarding Ampliado:</span> Se mejoró el proceso inicial para incluir el perfil de riesgo y metas a largo plazo del usuario.</li>
-                    <li><span className="font-semibold text-white">Planificador Familiar:</span> El módulo ahora cuenta con más opciones y guarda los planes de forma persistente.</li>
-                    <li><span className="font-semibold text-white">Base de Datos:</span> Se reestructuró la base de datos para soportar el nuevo contexto.</li>
-                    <li><span className="font-semibold text-white">Historial de Chat:</span> Las conversaciones ahora se guardan por usuario.</li>
-                    <li><span className="font-semibold text-white">IA Personalizada:</span> El motor de IA fue actualizado para utilizar todo el contexto disponible del usuario.</li>
+
+            {/* Hito 2 */}
+            <div className="mb-4">
+                <h4 className="font-semibold text-white">Fase 2: Conexión con el Entorno</h4>
+                <p className="text-gray-400">Integramos a Resi con el mundo real para que sus consejos sean siempre actuales.</p>
+                <ul className="list-disc list-inside space-y-1 text-gray-400 mt-2">
+                    <li><span className="font-semibold text-white">Datos en Tiempo Real:</span> Conectamos la plataforma a fuentes de información confiables para que Resi esté al tanto de la realidad económica.</li>
+                    <li><span className="font-semibold text-white">Análisis Contextual:</span> El chat con nuestra IA ahora combina tu información personal con los datos actuales para brindarte asistencia más precisa.</li>
+                </ul>
+            </div>
+
+            {/* Hito 3 */}
+            <div className="mb-4">
+                <h4 className="font-semibold text-white">Fase 3: Módulos de Crecimiento y Productividad</h4>
+                <p className="text-gray-400">Ampliamos la plataforma para que Resi te acompañe en más aspectos de tu vida diaria.</p>
+                <ul className="list-disc list-inside space-y-1 text-gray-400 mt-2">
+                    <li><span className="font-semibold text-white">Planificación Familiar:</span> Creación de un módulo completo que genera planes de comidas, ahorro y ocio, adaptados a la dinámica de tu hogar.</li>
+                    <li><span className="font-semibold text-white">Huerto Inteligente:</span> El módulo de cultivo fue potenciado con un calendario de tareas, un registro de cosechas y análisis de rendimiento para maximizar tu productividad.</li>
+                </ul>
+            </div>
+            
+            {/* Hito 4 */}
+            <div className="mb-4">
+                <h4 className="font-semibold text-white">Fase 4: Compromiso y Crecimiento Personal</h4>
+                <p className="text-gray-400">Creamos un sistema de recompensas para hacer del progreso un hábito motivador.</p>
+                <ul className="list-disc list-inside space-y-1 text-gray-400 mt-2">
+                    <li><span className="font-semibold text-white">Gamificación:</span> Implementamos un sistema de logros, puntos y monedas virtuales que te premia por cada paso que das.</li>
+                    <li><span className="font-semibold text-white">ResiScore:</span> Presentamos tu Índice de Resiliencia, un puntaje que mide tu evolución y te motiva a mejorar continuamente en tu camino a la estabilidad.</li>
                 </ul>
             </div>
         </div>
-    </Modal>
+
+        {/* Sección: Visión de Futuro y Monetización */}
+        <div className="mb-6">
+            <h3 className="text-xl font-semibold text-green-400 mb-2">Visión de Futuro: Crecimiento Sostenible</h3>
+            <p className="text-gray-300">Nuestra estrategia de monetización está pensada para mantener Resi gratuito y accesible para todos. Los ingresos provendrán de servicios a instituciones, lo que nos permite ofrecer la plataforma sin costo para los usuarios.</p>
+            <ul className="list-disc list-inside space-y-1 text-gray-300 mt-2">
+                <li><span className="font-semibold text-white">Modelo de Licencias:</span> Ofreceremos a municipios, ONGs y bancos la posibilidad de usar Resi como su propio asistente comunitario.</li>
+                <li><span className="font-semibold text-white">Expansión de Módulos:</span> A futuro, planeamos sumar módulos de educación financiera avanzada, un mercado de productos sostenibles y la integración de energías renovables.</li>
+            </ul>
+        </div>
+    </div>
+</Modal>
 );
 
 export default function HomePage() {
