@@ -11,6 +11,9 @@ from sqlalchemy import func, delete
 from typing import Optional, List
 from datetime import datetime, timedelta
 import google.generativeai as genai
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
+from pydantic import ValidationError
 
 from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
 from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse, ResilienceSummary

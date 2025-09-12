@@ -23,7 +23,7 @@ export default function Analysis() {
       const fetchData = async () => {
         setIsLoading(true);
         try {
-          const apiHeaders = { headers: { 'Authorization': `Bearer ${session.user.email}` } };
+          const apiHeaders = { headers: { 'Authorization': `Bearer ${session.user?.email}` } };
           const [pieRes, barRes] = await Promise.all([
             // CORRECCIÓN: Se agrega el encabezado de autorización
             apiClient.get('/finance/analysis/monthly-distribution', apiHeaders),

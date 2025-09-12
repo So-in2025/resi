@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import random
 from sqlalchemy.orm import Session
 import json
-from typing import Optional
+from typing import Optional 
 
 from database import User, CultivationPlan
 from schemas import CultivationPlanRequest, AIChatInput, ValidateParamsRequest, CultivationPlanResponse, CultivationPlanResult
@@ -29,7 +29,8 @@ def get_latest_plan(db: Session = Depends(get_db), user: User = Depends(get_user
 
 @router.post("/generate-plan", response_model=CultivationPlanResult)
 def generate_cultivation_plan(request: CultivationPlanRequest, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
-    ai_plan_result = generate_plan_with_gemini(request, user)
+    # CORRECCIÓN: Se pasa el argumento 'db' a la función de la IA.
+    ai_plan_result = generate_plan_with_gemini(request, db, user)
 
     new_plan = CultivationPlan(user_email=user.email, plan_data=ai_plan_result.json())
     db.add(new_plan)
