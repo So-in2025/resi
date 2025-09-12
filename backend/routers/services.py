@@ -1,20 +1,18 @@
-# En: backend/dependencies.py
+# En: backend/services.py
 import os
-import io
 import textwrap
 import json
-import asyncio
 import httpx
-from fastapi import Depends, HTTPException, Header, status, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import func, delete
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime, timedelta
 import google.generativeai as genai
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from fastapi import HTTPException
+from pydantic import ValidationError
 
-from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
-from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse, ResilienceSummary
-from routers import market_data
+from database import User, BudgetItem, Expense, SavingGoal
+from schemas import CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse, ResilienceSummary
 
 # --- CONFIGURACIÓN E INICIALIZACIÓN DE LOS MODELOS DE IA ---
 # Se movió aquí para evitar la dependencia circular.
@@ -74,80 +72,6 @@ model_family_plan_generator = genai.GenerativeModel(
     system_instruction="Tu única tarea es actuar como un experto en planificación familiar, creando planes personalizados en formato JSON."
 )
 # --- FIN DE LA INICIALIZACIÓN ---
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-def get_current_user_email(request: Request, authorization: Optional[str] = Header(None)):
-    if request.method == "OPTIONS": return None
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de autorización faltante o inválido.")
-    return authorization.split(" ")[1]
-
-def get_user_or_create(user_email: str = Depends(get_current_user_email), db: Session = Depends(get_db)):
-    if user_email is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No se pudo verificar el email del usuario.")
-    
-    user = db.query(User).filter(User.email == user_email).first()
-    
-    if not user:
-        new_user = User(email=user_email, has_completed_onboarding=False)
-        db.add(new_user)
-        new_profile = GameProfile(user_email=user_email)
-        db.add(new_profile)
-        db.commit()
-        db.refresh(new_user)
-        return new_user
-    return user
-
-def award_achievement(user: User, achievement_id: str, db: Session, progress_to_add: int = 1):
-    """
-    Función para otorgar y actualizar el progreso de un logro.
-    Devuelve un mensaje si el logro fue desbloqueado.
-    """
-    achievement = db.query(Achievement).filter(Achievement.id == achievement_id).first()
-    if not achievement:
-        print(f"Advertencia: Logro '{achievement_id}' no encontrado en la base de datos.")
-        return None
-
-    user_achiev = db.query(UserAchievement).filter(
-        UserAchievement.user_email == user.email,
-        UserAchievement.achievement_id == achievement_id
-    ).first()
-
-    if not user_achiev:
-        user_achiev = UserAchievement(user_email=user.email, achievement_id=achievement_id)
-        db.add(user_achiev)
-        db.flush()
-
-    if not user_achiev.is_completed:
-        user_achiev.progress += progress_to_add
-        
-        profile = db.query(GameProfile).filter(GameProfile.user_email == user.email).first()
-
-        if user_achiev.progress >= achievement.points:
-            user_achiev.is_completed = True
-            user_achiev.completion_date = datetime.utcnow()
-            
-            if profile:
-                if achievement.type == "finance":
-                    profile.financial_points += achievement.points
-                elif achievement.type == "cultivation":
-                    profile.cultivation_points += achievement.points
-                elif achievement.type == "community":
-                    profile.community_points += achievement.points
-                profile.resi_score += achievement.points * 2
-                profile.resilient_coins += achievement.points * 5
-
-            db.commit()
-            return f"¡Logro desbloqueado: '{achievement.name}'!"
-    
-    db.commit()
-    return None
 
 def parse_expense_with_gemini(text: str, db: Session, user_email: str) -> Optional[dict]:
     budget_items = db.query(BudgetItem.category).filter(BudgetItem.user_email == user_email, BudgetItem.category != "_income").all()
@@ -240,9 +164,9 @@ def generate_plan_with_gemini(request: CultivationPlanRequest, db: Session, user
         validated_plan = CultivationPlanResult(**parsed_plan)
         return validated_plan
         
-    except Exception as e:
+    except (json.JSONDecodeError, ValidationError, Exception) as e:
         print(f"Error al generar el plan de cultivo con Gemini: {e}")
-        raise HTTPException(status_code=500, detail="Error de la IA al generar el plan de cultivo.")
+        raise HTTPException(status_code=500, detail="Error de la IA al generar el plan de cultivo. Por favor, revisa el formato de la respuesta del modelo.")
 
 def validate_parameters_with_gemini(request: ValidateParamsRequest):
     """
@@ -327,9 +251,9 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
         validated_plan = FamilyPlanResponse(**parsed_plan)
         return validated_plan
         
-    except Exception as e:
+    except (json.JSONDecodeError, ValidationError, Exception) as e:
         print(f"Error al generar el plan familiar con Gemini: {e}")
-        raise HTTPException(status_code=500, detail="Error de la IA al generar el plan familiar.")
+        raise HTTPException(status_code=500, detail="Error de la IA al generar el plan familiar. Por favor, revisa el formato de la respuesta del modelo.")
 
 def get_dashboard_summary(db: Session, user: User):
     try:
