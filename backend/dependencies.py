@@ -9,7 +9,8 @@ from sqlalchemy import func
 from datetime import datetime
 
 from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
-from schemas import ExpenseData, GoalInput, BudgetInput
+from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest
+from main import model_plan_generator, model_validator
 
 def get_db():
     db = SessionLocal()
@@ -132,3 +133,92 @@ def parse_expense_with_gemini(text: str, db: Session, user_email: str) -> Option
     except Exception as e:
         print(f"Error al procesar con Gemini o validar los datos: {e}")
         return None
+
+def generate_plan_with_gemini(request: CultivationPlanRequest, user: User) -> CultivationPlanResult:
+    """
+    Función que genera un plan de cultivo dinámicamente con la IA de Gemini.
+    """
+    global model_plan_generator
+    
+    # Creamos un prompt específico para la generación de planes
+    plan_prompt = textwrap.dedent(f"""
+    Basado en los siguientes datos del usuario:
+    - Método: {request.method}
+    - Espacio: {request.space}
+    - Experiencia: {request.experience}
+    - Presupuesto inicial: ${request.initialBudget:,.0f}
+    - Gasto mensual en vegetales: ${request.supermarketSpending:,.0f}
+    - Tipo de luz: {request.light if request.method == 'hydroponics' else 'N/A'}
+    - Tipo de suelo: {request.soilType if request.method == 'organic' else 'N/A'}
+    - Ubicación: {request.location}
+
+    Actúa como un experto en cultivo y diseña un plan de cultivo ideal para este usuario.
+    El plan debe tener la siguiente estructura JSON y NO DEBE incluir ninguna otra información.
+    
+    {{
+      "crop": "Cultivo recomendado (ej: 'Lechuga y Rúcula' o 'Tomates Cherry')",
+      "system": "Sistema de cultivo recomendado (ej: 'Sistema DWC casero' o 'Bancal elevado')",
+      "materials": "Lista de materiales esenciales y su uso (ej: 'Contenedores plásticos, bomba de aire, etc.')",
+      "projectedSavings": "Una estimación de ahorro mensual, conectada al gasto en supermercado del usuario (ej: 'Con este plan, podrías ahorrar un 20% de tus gastos en la verdulería, unos $5.000 al mes.')",
+      "tips": "Un consejo personalizado y específico para el usuario, basado en su ubicación, experiencia y método.",
+      "imagePrompt": "Un prompt en inglés para generar una imagen visual del plan (opcional)"
+    }}
+    
+    Asegúrate de que la "projectedSavings" se adapte al `supermarketSpending` del usuario. Sé creativo, pero mantente realista.
+    """)
+    
+    try:
+        response = model_plan_generator.generate_content(plan_prompt)
+        parsed_plan = json.loads(response.text)
+        
+        # Validar el plan generado con nuestro esquema Pydantic para asegurar que sea correcto
+        validated_plan = CultivationPlanResult(**parsed_plan)
+        return validated_plan
+        
+    except Exception as e:
+        print(f"Error al generar el plan de cultivo con Gemini: {e}")
+        raise HTTPException(status_code=500, detail="Error de la IA al generar el plan de cultivo.")
+
+def validate_parameters_with_gemini(request: ValidateParamsRequest):
+    """
+    Función que valida los parámetros de cultivo con la IA de Gemini.
+    """
+    global model_validator
+    
+    # Creamos un prompt dinámico para validar los parámetros
+    validation_prompt = textwrap.dedent(f"""
+    Analiza los siguientes parámetros de cultivo:
+    - Método: {request.method}
+    - pH: {request.ph}
+    - Conductividad Eléctrica (EC): {request.ec}
+    - Temperatura (Temp): {request.temp}
+    - Humedad del suelo (SoilMoisture): {request.soilMoisture}
+    
+    Genera un JSON con el siguiente formato:
+    {{
+      "isValid": boolean,
+      "advice": "Un consejo personalizado y claro. Si hay un problema, explica por qué y qué hacer. Si todo está bien, da un mensaje de ánimo."
+    }}
+    
+    Los rangos óptimos para el método hidropónico son:
+    - pH: 5.5 a 6.5
+    - EC: > 0
+    - Temperatura: 18°C a 24°C
+    
+    Los rangos óptimos para el método orgánico son:
+    - pH: 6.0 a 7.0
+    - Humedad del suelo: 30% a 60%
+    
+    Asegúrate de que el "advice" sea un consejo práctico y útil para el usuario.
+    """)
+    
+    try:
+        response = model_validator.generate_content(validation_prompt, generation_config={"response_mime_type": "application/json"})
+        parsed_response = json.loads(response.text)
+        
+        # Devolver el resultado validado
+        return parsed_response
+        
+    except Exception as e:
+        print(f"Error al validar parámetros con Gemini: {e}")
+        raise HTTPException(status_code=500, detail="Error de la IA al validar los parámetros.")
