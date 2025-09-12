@@ -116,3 +116,32 @@ class CultivationPlanResponse(BaseModel):
     created_at: datetime
     class Config:
         from_attributes = True
+
+# --- NUEVOS SCHEMAS PARA EL MÓDULO DE CULTIVO EXTENDIDO ---
+class HarvestLogInput(BaseModel):
+    crop_name: str
+    quantity: float
+    unit: str
+    
+class HarvestLogResponse(BaseModel):
+    id: int
+    crop_name: str
+    quantity: float
+    unit: str
+    harvest_date: datetime
+    class Config:
+        from_attributes = True
+
+class CultivationTaskInput(BaseModel):
+    task_name: str
+    crop_name: Optional[str] = None
+    due_date: datetime
+    
+class CultivationTaskResponse(BaseModel):
+    id: int
+    task_name: str
+    crop_name: Optional[str] = None
+    due_date: datetime
+    is_completed: bool
+    class Config:
+        from_attributes = True

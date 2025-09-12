@@ -3,13 +3,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
-  FaSeedling, FaCalculator, FaTools, FaBook, FaRobot,
-  FaCheckCircle, FaExclamationCircle, FaDollarSign, FaBoxes, FaLeaf, FaMicrochip, FaDownload, FaImage, FaTrashAlt, FaSun, FaLightbulb, FaSmile, FaMapMarkerAlt,
-  FaCalendarAlt, FaChartBar, FaClipboardCheck
+  FaSeedling, FaCalculator, FaTools, FaBook, FaRobot, FaClipboardCheck, FaCalendarAlt, FaChartBar, FaPlus,
+  FaCheckCircle, FaExclamationCircle, FaDollarSign, FaBoxes, FaLeaf, FaMicrochip, FaDownload, FaImage, FaTrashAlt, FaSun, FaLightbulb, FaSmile, FaMapMarkerAlt, FaCircle
 } from "react-icons/fa";
 import toast from 'react-hot-toast';
 import apiClient from '@/lib/apiClient';
 import { useSession, signIn } from 'next-auth/react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface TabButtonProps {
     isActive: boolean;
@@ -51,6 +51,27 @@ interface ChatResponse {
     imagePrompt?: string;
 }
 
+interface HarvestLog {
+    id: number;
+    crop_name: string;
+    quantity: number;
+    unit: string;
+    harvest_date: string;
+}
+interface CultivationTask {
+    id: number;
+    task_name: string;
+    crop_name?: string;
+    due_date: string;
+    is_completed: boolean;
+}
+interface AnalysisData {
+  month: string;
+  yield: number;
+  savings: number;
+}
+
+
 interface CultivationModuleProps {
     initialMethod: string;
     userFinancialData: { supermarketSpending: number } | null;
@@ -61,6 +82,13 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
   const [method, setMethod] = useState(initialMethod);
   const [activeTab, setActiveTab] = useState('planificacion');
   const [latestPlan, setLatestPlan] = useState<CultivationPlan | null>(null);
+
+  // Estados para nuevas pestañas
+  const [harvestLogs, setHarvestLogs] = useState<HarvestLog[]>([]);
+  const [newHarvest, setNewHarvest] = useState({ crop_name: '', quantity: '', unit: 'kg' });
+  const [cultivationTasks, setCultivationTasks] = useState<CultivationTask[]>([]);
+  const [newTask, setNewTask] = useState({ task_name: '', due_date: '', crop_name: '' });
+  const [analysisData, setAnalysisData] = useState<AnalysisData[]>([]);
 
   // Estados Unificados para Planificación
   const [space, setSpace] = useState('');
@@ -106,8 +134,107 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
       }
     };
     fetchLatestPlan();
-  }, [session, activeTab]); 
+  }, [session]);
   
+  const fetchHarvests = useCallback(async () => {
+    if (!session?.user?.email) return;
+    try {
+        const response = await apiClient.get('/cultivation/harvests', { headers: { 'Authorization': `Bearer ${session.user.email}` } });
+        setHarvestLogs(response.data);
+    } catch (error) {
+        console.error("Error fetching harvests:", error);
+        toast.error("No se pudieron cargar los registros de cosecha.");
+    }
+  }, [session]);
+  
+  const fetchTasks = useCallback(async () => {
+    if (!session?.user?.email) return;
+    try {
+        const response = await apiClient.get('/cultivation/tasks', { headers: { 'Authorization': `Bearer ${session.user.email}` } });
+        setCultivationTasks(response.data);
+    } catch (error) {
+        console.error("Error fetching tasks:", error);
+        toast.error("No se pudieron cargar las tareas del calendario.");
+    }
+  }, [session]);
+
+  const fetchAnalysisData = useCallback(async () => {
+    if (!session?.user?.email) return;
+    try {
+        const response = await apiClient.get('/cultivation/analysis/monthly-data', { headers: { 'Authorization': `Bearer ${session.user.email}` } });
+        setAnalysisData(response.data);
+    } catch (error) {
+        console.error("Error fetching analysis data:", error);
+        toast.error("No se pudieron cargar los datos de análisis.");
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (activeTab === 'cosecha') fetchHarvests();
+    if (activeTab === 'calendario') fetchTasks();
+    if (activeTab === 'analisis-rendimiento') fetchAnalysisData();
+  }, [activeTab, fetchHarvests, fetchTasks, fetchAnalysisData]);
+
+  const handleAddHarvest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session?.user?.email) return;
+    const toastId = toast.loading("Registrando cosecha...");
+    try {
+        await apiClient.post('/cultivation/harvests', { 
+            crop_name: newHarvest.crop_name,
+            quantity: parseFloat(newHarvest.quantity),
+            unit: newHarvest.unit
+        }, { headers: { 'Authorization': `Bearer ${session.user.email}` } });
+        toast.success("Cosecha registrada con éxito!", { id: toastId });
+        setNewHarvest({ crop_name: '', quantity: '', unit: 'kg' });
+        fetchHarvests();
+    } catch (error) {
+        toast.error("Error al registrar la cosecha.", { id: toastId });
+    }
+  };
+
+  const handleDeleteHarvest = async (id: number) => {
+    if (!session?.user?.email) return;
+    if (window.confirm("¿Estás seguro de que quieres eliminar este registro?")) {
+      try {
+        await apiClient.delete(`/cultivation/harvests/${id}`, { headers: { 'Authorization': `Bearer ${session.user.email}` } });
+        toast.success("Registro de cosecha eliminado.");
+        fetchHarvests();
+      } catch (error) {
+        toast.error("No se pudo eliminar el registro.");
+      }
+    }
+  };
+
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session?.user?.email) return;
+    const toastId = toast.loading("Agregando tarea...");
+    try {
+        await apiClient.post('/cultivation/tasks', { 
+            task_name: newTask.task_name,
+            due_date: newTask.due_date,
+            crop_name: newTask.crop_name || null,
+        }, { headers: { 'Authorization': `Bearer ${session.user.email}` } });
+        toast.success("Tarea agregada con éxito!", { id: toastId });
+        setNewTask({ task_name: '', due_date: '', crop_name: '' });
+        fetchTasks();
+    } catch (error) {
+        toast.error("Error al agregar la tarea.", { id: toastId });
+    }
+  };
+
+  const handleToggleTask = async (id: number) => {
+    if (!session?.user?.email) return;
+    try {
+        await apiClient.patch(`/cultivation/tasks/${id}/toggle`, {}, { headers: { 'Authorization': `Bearer ${session.user.email}` } });
+        toast.success("Tarea actualizada.");
+        fetchTasks();
+    } catch (error) {
+        toast.error("No se pudo actualizar la tarea.");
+    }
+  };
+
 
   const generateAiPlan = async () => {
     if (!session?.user?.email) {
@@ -134,9 +261,6 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
             headers: { 'Authorization': `Bearer ${session.user.email}` }
         });
         setAiPlanResult(response.data);
-        // CORRECCIÓN: Al generar un nuevo plan, cambiamos a la pestaña de "Plan Guardado" y actualizamos el estado.
-        setLatestPlan({ plan_data: response.data, created_at: new Date().toISOString() });
-        setActiveTab('plan-guardado');
         toast.success('¡Plan generado con éxito!', { id: toastId });
     } catch (error: any) {
         // CORRECCIÓN: Se maneja el error para mostrar el mensaje específico
@@ -243,6 +367,9 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
         <TabButton isActive={activeTab === 'ahorro'} onClick={() => setActiveTab('ahorro')} icon={FaCalculator} label="Ahorro" />
         <TabButton isActive={activeTab === 'plan-guardado'} onClick={() => setActiveTab('plan-guardado')} icon={FaLeaf} label="Plan Guardado" />
         <TabButton isActive={activeTab === 'ia-chat'} onClick={() => setActiveTab('ia-chat')} icon={FaRobot} label="Asistencia IA" />
+        <TabButton isActive={activeTab === 'cosecha'} onClick={() => setActiveTab('cosecha')} icon={FaClipboardCheck} label="Cosecha" />
+        <TabButton isActive={activeTab === 'calendario'} onClick={() => setActiveTab('calendario')} icon={FaCalendarAlt} label="Calendario" />
+        <TabButton isActive={activeTab === 'analisis-rendimiento'} onClick={() => setActiveTab('analisis-rendimiento')} icon={FaChartBar} label="Rendimiento" />
       </div>
 
       <div className="bg-gray-800 p-6 md:p-8 rounded-lg shadow-lg min-h-[500px]">
@@ -447,6 +574,119 @@ export default function CultivationModule({ initialMethod, userFinancialData }: 
                 <button onClick={clearChat} className="bg-red-500 text-white px-4 rounded-md hover:bg-red-600 transition-colors duration-200"><FaTrashAlt /></button>
               </div>
             </div>
+          </div>
+        )}
+        
+        {activeTab === 'cosecha' && (
+          <div className="space-y-6">
+            <h3 className="text-3xl font-bold text-green-400 text-center mb-6">Registro de Cosecha</h3>
+            <p className="text-center text-lg">Lleva un registro detallado de todo lo que cosechas. ¡Celebra tus logros!</p>
+            <form onSubmit={handleAddHarvest} className="flex flex-col md:flex-row gap-4 p-4 bg-gray-700 rounded-lg">
+                <input type="text" placeholder="Nombre del cultivo (ej: Tomates)" value={newHarvest.crop_name} onChange={(e) => setNewHarvest({ ...newHarvest, crop_name: e.target.value })} className="flex-1 p-2 rounded-md bg-gray-800 border border-gray-600" required />
+                <input type="number" placeholder="Cantidad (ej: 2.5)" value={newHarvest.quantity} onChange={(e) => setNewHarvest({ ...newHarvest, quantity: e.target.value })} className="w-full md:w-1/4 p-2 rounded-md bg-gray-800 border border-gray-600" step="0.1" required />
+                <select value={newHarvest.unit} onChange={(e) => setNewHarvest({ ...newHarvest, unit: e.target.value })} className="w-full md:w-1/4 p-2 rounded-md bg-gray-800 border border-gray-600">
+                    <option value="kg">kg</option>
+                    <option value="unidad">unidad</option>
+                    <option value="gramos">gramos</option>
+                </select>
+                <button type="submit" className="md:w-auto px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"><FaPlus /></button>
+            </form>
+            <div className="mt-6 space-y-2">
+                {harvestLogs.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left table-auto">
+                            <thead>
+                                <tr className="border-b border-gray-600">
+                                    <th className="p-2">Cultivo</th>
+                                    <th className="p-2 text-right">Cantidad</th>
+                                    <th className="p-2 text-right">Fecha</th>
+                                    <th className="p-2"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {harvestLogs.map((log) => (
+                                    <tr key={log.id} className="border-b border-gray-700 hover:bg-gray-700/50">
+                                        <td className="p-2 font-semibold">{log.crop_name}</td>
+                                        <td className="p-2 text-right">{log.quantity} {log.unit}</td>
+                                        <td className="p-2 text-right">{new Date(log.harvest_date).toLocaleDateString('es-AR')}</td>
+                                        <td className="p-2 text-right"><button onClick={() => handleDeleteHarvest(log.id)} className="text-red-500 hover:text-red-400"><FaTrashAlt /></button></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <p className="text-center text-gray-400 py-8">Aún no registraste ninguna cosecha.</p>
+                )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'calendario' && (
+          <div className="space-y-6">
+            <h3 className="text-3xl font-bold text-green-400 text-center mb-6">Calendario de Tareas</h3>
+            <p className="text-center text-lg">Organiza tu huerto. Resi te recordará cuándo regar, fertilizar y podar tus plantas.</p>
+             <form onSubmit={handleAddTask} className="flex flex-col md:flex-row gap-4 p-4 bg-gray-700 rounded-lg">
+                <input type="text" placeholder="Nombre de la tarea (ej: Podar tomates)" value={newTask.task_name} onChange={(e) => setNewTask({ ...newTask, task_name: e.target.value })} className="flex-1 p-2 rounded-md bg-gray-800 border border-gray-600" required />
+                <input type="date" value={newTask.due_date} onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })} className="w-full md:w-auto p-2 rounded-md bg-gray-800 border border-gray-600" required />
+                <input type="text" placeholder="Cultivo (opcional)" value={newTask.crop_name} onChange={(e) => setNewTask({ ...newTask, crop_name: e.target.value })} className="flex-1 p-2 rounded-md bg-gray-800 border border-gray-600" />
+                <button type="submit" className="md:w-auto px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"><FaPlus /></button>
+            </form>
+            <div className="mt-6 space-y-2">
+                {cultivationTasks.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left table-auto">
+                            <thead>
+                                <tr className="border-b border-gray-600">
+                                    <th className="p-2">Tarea</th>
+                                    <th className="p-2">Cultivo</th>
+                                    <th className="p-2">Fecha Límite</th>
+                                    <th className="p-2 text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {cultivationTasks.map((task) => (
+                                    <tr key={task.id} className="border-b border-gray-700 hover:bg-gray-700/50">
+                                        <td className="p-2 font-semibold">{task.task_name}</td>
+                                        <td className="p-2 italic">{task.crop_name || 'General'}</td>
+                                        <td className="p-2">{new Date(task.due_date).toLocaleDateString('es-AR')}</td>
+                                        <td className="p-2 text-center">
+                                            <button onClick={() => handleToggleTask(task.id)} className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto ${task.is_completed ? 'bg-green-500 text-white' : 'bg-gray-600 text-gray-400'}`}>
+                                                {task.is_completed ? <FaCheckCircle /> : <FaCircle size={10} />}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <p className="text-center text-gray-400 py-8">No hay tareas programadas. ¡Agrega una para empezar!</p>
+                )}
+            </div>
+          </div>
+        )}
+        
+        {activeTab === 'analisis-rendimiento' && (
+          <div className="space-y-6">
+            <h3 className="text-3xl font-bold text-green-400 text-center mb-6">Análisis de Rendimiento</h3>
+            <p className="text-center text-lg">Visualiza el éxito de tu huerto a lo largo del tiempo. Compara el rendimiento de tus cultivos y el ahorro generado.</p>
+            {analysisData.length > 0 ? (
+                <div className="bg-gray-700 p-4 rounded-lg">
+                    <ResponsiveContainer width="100%" height={400}>
+                        <LineChart data={analysisData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                            <Line type="monotone" dataKey="yield" stroke="#8884d8" name="Cosecha (kg)" />
+                            <Line type="monotone" dataKey="savings" stroke="#82ca9d" name="Ahorro ($)" />
+                            <CartesianGrid stroke="#4a5568" strokeDasharray="5 5" />
+                            <XAxis dataKey="month" />
+                            <YAxis />
+                            <Tooltip />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            ) : (
+                <p className="text-center text-gray-400 py-8">No hay suficientes datos para generar un análisis. Registra tus cosechas para empezar.</p>
+            )}
           </div>
         )}
       </div>

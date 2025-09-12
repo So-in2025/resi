@@ -42,6 +42,10 @@ class User(Base):
     # NUEVAS RELACIONES para el Módulo 5
     game_profile = relationship("GameProfile", back_populates="owner", uselist=False)
     user_achievements = relationship("UserAchievement", back_populates="owner")
+    
+    # NUEVAS RELACIONES para el Módulo 2 extendido
+    harvest_logs = relationship("HarvestLog", back_populates="owner")
+    cultivation_tasks = relationship("CultivationTask", back_populates="owner")
 
 class Expense(Base):
     __tablename__ = "expenses"
@@ -124,6 +128,26 @@ class UserAchievement(Base):
     completion_date = Column(DateTime, nullable=True)
     owner = relationship("User", back_populates="user_achievements")
     achievement_ref = relationship("Achievement")
+
+class HarvestLog(Base):
+    __tablename__ = "harvest_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    crop_name = Column(String, nullable=False)
+    quantity = Column(Float, nullable=False)
+    unit = Column(String, nullable=False)
+    harvest_date = Column(DateTime, default=datetime.utcnow)
+    user_email = Column(String, ForeignKey("users.email"))
+    owner = relationship("User", back_populates="harvest_logs")
+
+class CultivationTask(Base):
+    __tablename__ = "cultivation_tasks"
+    id = Column(Integer, primary_key=True, index=True)
+    task_name = Column(String, nullable=False)
+    crop_name = Column(String, nullable=True)
+    due_date = Column(DateTime, nullable=False)
+    is_completed = Column(Boolean, default=False)
+    user_email = Column(String, ForeignKey("users.email"))
+    owner = relationship("User", back_populates="cultivation_tasks")
 
 def create_db_and_tables():
     Base.metadata.create_all(bind=engine)
