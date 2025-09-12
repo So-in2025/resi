@@ -12,7 +12,8 @@ from typing import List
 
 from database import create_db_and_tables, User, Expense, ChatMessage, BudgetItem, FamilyPlan, GameProfile, Achievement, UserAchievement, CultivationPlan
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse
-from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement, generate_plan_with_gemini, validate_parameters_with_gemini, generate_family_plan_with_gemini, model_chat
+from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement, generate_plan_with_gemini, validate_parameters_with_gemini, generate_family_plan_with_gemini
+from dependencies import model_chat
 from routers import finance, cultivation, family, market_data, gamification
 
 app = FastAPI(title="Resi API", version="4.5.0")
