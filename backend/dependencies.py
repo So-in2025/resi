@@ -11,16 +11,17 @@ from sqlalchemy import func, delete
 from typing import Optional, List
 from datetime import datetime, timedelta
 import google.generativeai as genai
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
 from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse, ResilienceSummary
-from routers import market_data, finance
+from routers import market_data
 
 # --- CONFIGURACIÓN E INICIALIZACIÓN DE LOS MODELOS DE IA ---
 # Se movió aquí para evitar la dependencia circular.
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
-# NOTA: EL PROMPT DE SISTEMA ESTÁ EN ESTE ARCHIVO PARA EVITAR EL ERROR DE IMPORTACIÓN CIRCULAR
 model_chat = genai.GenerativeModel(
     model_name="gemini-1.5-flash-latest",
     system_instruction=textwrap.dedent("""
@@ -198,19 +199,23 @@ def parse_expense_with_gemini(text: str, db: Session, user_email: str) -> Option
         print(f"Error al procesar con Gemini o validar los datos: {e}")
         return None
 
-def generate_plan_with_gemini(request: CultivationPlanRequest, user: User) -> CultivationPlanResult:
+def generate_plan_with_gemini(request: CultivationPlanRequest, db: Session, user: User) -> CultivationPlanResult:
     """
     Función que genera un plan de cultivo dinámicamente con la IA de Gemini.
     """
     global model_plan_generator
     
+    # Manejar posibles valores None o vacíos
+    supermarket_spending = request.supermarketSpending if request.supermarketSpending is not None and request.supermarketSpending != '' else 0
+    initial_budget = request.initialBudget if request.initialBudget is not None and request.initialBudget != '' else 0
+
     plan_prompt = textwrap.dedent(f"""
     Basado en los siguientes datos del usuario:
     - Método: {request.method}
     - Espacio: {request.space}
     - Experiencia: {request.experience}
-    - Presupuesto inicial: ${request.initialBudget:,.0f}
-    - Gasto mensual en vegetales: ${request.supermarketSpending:,.0f}
+    - Presupuesto inicial: ${initial_budget:,.0f}
+    - Gasto mensual en vegetales: ${supermarket_spending:,.0f}
     - Tipo de luz: {request.light if request.method == 'hydroponics' else 'N/A'}
     - Tipo de suelo: {request.soilType if request.method == 'organic' else 'N/A'}
     - Ubicación: {request.location}
