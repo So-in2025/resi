@@ -26,7 +26,6 @@ class ValidateParamsRequest(BaseModel):
     temp: Optional[float] = None; soilMoisture: Optional[float] = None
 class ResilienceSummary(BaseModel):
     title: str; message: str; suggestion: str; supermarket_spending: float
-    # CORRECCIÓN: Se cambia orm_mode por from_attributes
     class Config:
         from_attributes = True
 
@@ -43,6 +42,8 @@ class MealPlanItem(BaseModel):
     day: str
     meal: str
     tags: List[str]
+    ingredients: List[str] = []
+    instructions: List[str] = []
 
 class LeisureSuggestion(BaseModel):
     activity: str
@@ -53,7 +54,6 @@ class FamilyPlanResponse(BaseModel):
     mealPlan: List[MealPlanItem]
     budgetSuggestion: str
     leisureSuggestion: LeisureSuggestion
-    # CORRECCIÓN: Se cambia orm_mode por from_attributes
     class Config:
         from_attributes = True
 
@@ -64,12 +64,10 @@ class ChatMessageResponse(BaseModel):
     sender: str
     message: str
     timestamp: datetime
-    # CORRECCIÓN: Se cambia orm_mode por from_attributes
     class Config:
         from_attributes = True
 
 # --- NUEVOS SCHEMAS DE RESPUESTA, ajustados para la base de datos real ---
-# (Estos son los que te di en el mensaje anterior, ahora combinados con el resto)
 
 class AchievementSchema(BaseModel):
     id: str
@@ -78,7 +76,6 @@ class AchievementSchema(BaseModel):
     icon: Optional[str] = None
     points: int
     type: str
-    # CORRECCIÓN: Se cambia orm_mode por from_attributes
     class Config:
         from_attributes = True
 
@@ -87,7 +84,6 @@ class UserAchievementSchema(BaseModel):
     progress: int
     is_completed: bool
     completion_date: Optional[str] = None
-    # CORRECCIÓN: Se cambia orm_mode por from_attributes
     class Config:
         from_attributes = True
 
@@ -98,7 +94,6 @@ class GameProfileResponse(BaseModel):
     cultivation_points: int
     community_points: int
     achievements: List[UserAchievementSchema] = []
-    # CORRECCIÓN: Se cambia orm_mode por from_attributes
     class Config:
         from_attributes = True
 

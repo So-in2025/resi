@@ -22,8 +22,19 @@ def get_latest_family_plan(db: Session = Depends(get_db), user: User = Depends(g
     
     plan_data = json.loads(latest_plan.plan_data)
     
+    # NUEVO: Asegurarse de que los campos de receta existan
+    meal_plan_items = [
+        MealPlanItem(
+            day=item["day"],
+            meal=item["meal"],
+            tags=item["tags"],
+            ingredients=item.get("ingredients", []),
+            instructions=item.get("instructions", [])
+        ) for item in plan_data.get("mealPlan", [])
+    ]
+    
     return FamilyPlanResponse(
-        mealPlan=[MealPlanItem(**item) for item in plan_data.get("mealPlan", [])],
+        mealPlan=meal_plan_items,
         budgetSuggestion=plan_data.get("budgetSuggestion", ""),
         leisureSuggestion=LeisureSuggestion(**plan_data.get("leisureSuggestion", {}))
     )

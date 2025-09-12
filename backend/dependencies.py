@@ -16,7 +16,7 @@ from sqlalchemy.orm import selectinload
 from pydantic import ValidationError
 
 from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
-from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse, ResilienceSummary
+from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse, ResilienceSummary, MealPlanItem
 from routers import market_data
 
 # --- CONFIGURACIÓN E INICIALIZACIÓN DE LOS MODELOS DE IA ---
