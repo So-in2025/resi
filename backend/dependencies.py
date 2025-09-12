@@ -310,6 +310,7 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session, us
     
     user_income = db.query(BudgetItem).filter(BudgetItem.user_email == user.email, BudgetItem.category == "_income").first().allocated_amount
     
+    # PROMPT CORREGIDO Y DETALLADO
     plan_prompt = textwrap.dedent(f"""
     Basado en los siguientes datos familiares:
     - Miembros de la familia: {json.dumps([m.dict() for m in request.familyMembers])}
@@ -322,7 +323,7 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session, us
 
     Actúa como un experto en planificación familiar y diseña un plan semanal completo de comidas, ahorro y ocio.
     El plan debe tener la siguiente estructura JSON y NO DEBE incluir ninguna otra información.
-
+    
     {{
       "mealPlan": [
         {{
@@ -335,12 +336,83 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session, us
             "etc."
           ],
           "instructions": [
-            "Paso 1: Instrucción detallada", 
-            "Paso 2: Instrucción detallada", 
+            "Paso 1: Instrucción detallada para la preparación", 
+            "Paso 2: Instrucción detallada para la preparación", 
             "etc."
           ]
         }},
-        ... (Para cada día de la semana)
+        {{
+          "day": "Martes", 
+          "meal": "Sugerencia de comida (ej: Ensalada de lentejas y arroz)",
+          "tags": ["ej: saludable", "rápido"],
+          "ingredients": [
+            "1 taza de lentejas cocidas",
+            "1/2 taza de arroz integral",
+            "1 tomate picado",
+            "1/2 cebolla morada en juliana",
+            "Hojas de espinaca fresca",
+            "Aderezo: aceite de oliva, jugo de limón, sal y pimienta"
+          ],
+          "instructions": [
+            "Paso 1: En un bowl grande, mezclar las lentejas, el arroz, el tomate y la cebolla.",
+            "Paso 2: Añadir las hojas de espinaca y el aderezo.",
+            "Paso 3: Mezclar bien y servir fría."
+          ]
+        }},
+        {{
+          "day": "Miércoles", 
+          "meal": "Sugerencia de comida (ej: Salteado de pollo y verduras)",
+          "tags": ["ej: proteico", "versátil"],
+          "ingredients": [
+            "2 pechugas de pollo en tiras",
+            "1 pimiento rojo en tiras",
+            "1 cebolla en juliana",
+            "1 calabacín en tiras",
+            "Aceite de girasol",
+            "Salsa de soja y jengibre"
+          ],
+          "instructions": [
+            "Paso 1: Calentar aceite en un wok. Saltear el pollo hasta que esté dorado.",
+            "Paso 2: Agregar las verduras y saltear por unos minutos hasta que estén tiernas pero crujientes.",
+            "Paso 3: Incorporar la salsa de soja y el jengibre. Cocinar por un minuto más y servir."
+          ]
+        }},
+        {{
+          "day": "Jueves", 
+          "meal": "Sugerencia de comida (ej: Tarta de acelga y queso)",
+          "tags": ["ej: clásico", "casero"],
+          "ingredients": [
+            "1 tapa de masa para tarta",
+            "1 atado de acelga hervida y escurrida",
+            "200g de queso cremoso",
+            "2 huevos",
+            "1 cebolla picada",
+            "Nuez moscada, sal y pimienta"
+          ],
+          "instructions": [
+            "Paso 1: Sofreír la cebolla, agregar la acelga y condimentar.",
+            "Paso 2: Batir los huevos y mezclarlos con la acelga, el queso en cubos y la nuez moscada.",
+            "Paso 3: Rellenar la tarta y hornear a 180°C por 30 minutos o hasta que esté dorada."
+          ]
+        }},
+        {{
+          "day": "Viernes", 
+          "meal": "Sugerencia de comida (ej: Empanadas de carne y papa)",
+          "tags": ["ej: fin de semana", "económico"],
+          "ingredients": [
+            "12 tapas de empanada",
+            "300g de carne picada",
+            "2 papas medianas hervidas",
+            "1 cebolla picada",
+            "Condimentos al gusto"
+          ],
+          "instructions": [
+            "Paso 1: Rehogar la cebolla, agregar la carne y cocinar.",
+            "Paso 2: Incorporar las papas pisadas y los condimentos. Dejar enfriar.",
+            "Paso 3: Rellenar las tapas de empanada, cerrar y hornear a 200°C por 15-20 minutos."
+          ]
+        }}
+        ... (y así para cada día de la semana)
       ],
       "budgetSuggestion": "Un consejo de presupuesto personalizado y accionable, relacionado con sus metas financieras y el ingreso mensual.",
       "leisureSuggestion": {{"activity": "Sugerencia de actividad", "cost": "costo estimado (ej: nulo, bajo, medio)", "description": "Una breve descripción de la actividad."}}
