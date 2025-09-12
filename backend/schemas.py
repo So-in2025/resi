@@ -42,6 +42,7 @@ class MealPlanItem(BaseModel):
     day: str
     meal: str
     tags: List[str]
+    # NUEVOS CAMPOS: Para incluir los detalles de la receta
     ingredients: List[str] = []
     instructions: List[str] = []
 
