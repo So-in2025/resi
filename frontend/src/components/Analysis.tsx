@@ -1,11 +1,11 @@
 // En: frontend/src/components/Analysis.tsx
 'use client';
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signIn } from 'next-auth/react'; // Agregamos signIn
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import SectionHeader from '@/components/SectionHeader';
 import InfoTooltip from '@/components/InfoTooltip';
-import apiClient from '@/lib/apiClient'; // CORRECCIÓN: Se importa el apiClient
+import apiClient from '@/lib/apiClient';
 
 interface PieData { name: string; value: number; }
 interface BarData { name: string; [key: string]: string | number; }
@@ -23,10 +23,12 @@ export default function Analysis() {
       const fetchData = async () => {
         setIsLoading(true);
         try {
-          // CORRECCIÓN: Se utiliza apiClient en lugar de axios con URL completa
+          const apiHeaders = { headers: { 'Authorization': `Bearer ${session.user.email}` } };
           const [pieRes, barRes] = await Promise.all([
-            apiClient.get('/finance/analysis/monthly-distribution'),
-            apiClient.get('/finance/analysis/spending-trend')
+            // CORRECCIÓN: Se agrega el encabezado de autorización
+            apiClient.get('/finance/analysis/monthly-distribution', apiHeaders),
+            // CORRECCIÓN: Se agrega el encabezado de autorización
+            apiClient.get('/finance/analysis/spending-trend', apiHeaders)
           ]);
           setPieData(pieRes.data);
           setBarData(barRes.data);
@@ -40,6 +42,17 @@ export default function Analysis() {
   }, [status, session]);
 
   if (isLoading) return <p>Cargando análisis...</p>;
+  
+  if (status === 'unauthenticated') {
+    return (
+        <div className="text-center p-8">
+            <h3 className="text-2xl font-bold text-white mb-4">Inicia sesión para ver tu Análisis de Gastos</h3>
+            <button onClick={() => signIn('google')} className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold">
+                Ingresar para empezar
+            </button>
+        </div>
+    );
+  }
 
   const barKeys = barData.length > 0 ? Object.keys(barData[0]).filter(key => key !== 'name') : [];
 
