@@ -329,8 +329,16 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session, us
           "day": "Lunes", 
           "meal": "Sugerencia de comida (ej: Milanesas de soja con puré)",
           "tags": ["ej: rápido", "económico"],
-          "ingredients": ["Ingrediente 1", "Ingrediente 2", "etc."],
-          "instructions": ["Paso 1", "Paso 2", "etc."]
+          "ingredients": [
+            "Medida y nombre de ingrediente 1", 
+            "Medida y nombre de ingrediente 2", 
+            "etc."
+          ],
+          "instructions": [
+            "Paso 1: Instrucción detallada", 
+            "Paso 2: Instrucción detallada", 
+            "etc."
+          ]
         }},
         ... (Para cada día de la semana)
       ],
