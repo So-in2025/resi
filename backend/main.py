@@ -19,83 +19,22 @@ from routers import finance, cultivation, family, market_data, gamification
 app = FastAPI(title="Resi API", version="4.5.0")
 
 # --- Variables Globales para los Clientes ---
-# Se declaran aquí como None. Se inicializarán de forma segura en el evento startup.
+# El cliente de Google Speech es el único que se inicializa aquí.
 speech_client = None
-model_chat = None
-model_plan_generator = None
-model_validator = None 
-model_family_plan_generator = None # ¡NUEVO! Modelo para generar planes familiares
 
-# CORRECCIÓN: Evento de inicio síncrono
 @app.on_event("startup")
 def startup_event():
     """
     Esta función se ejecuta una sola vez cuando la aplicación arranca.
     Es el lugar SEGURO para inicializar clientes que hacen llamadas de red.
     """
-    global speech_client, model_chat, model_plan_generator, model_validator, model_family_plan_generator
+    global speech_client
     
     # 1. Crear tablas de la base de datos
     create_db_and_tables()
     
     # 2. Inicializar cliente de Google Speech
     speech_client = speech.SpeechClient()
-    
-    # 3. Configurar y inicializar el modelo de Gemini (IA)
-    genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-    system_prompt_chat = textwrap.dedent("""
-    Eres "Resi", un asistente de IA amigable, empático y experto en resiliencia económica y alimentaria para usuarios en Argentina. Tu propósito es empoderar a las personas para que tomen el control de sus finanzas y bienestar.
-
-    Tu personalidad:
-    - Tono: Cercano, motivador y práctico. Usá un lenguaje coloquial argentino (ej: "vos" en lugar de "tú", "plata" en lugar de "dinero").
-    - Enfoque: Siempre positivo y orientado a soluciones. No juzgues, solo ayudá.
-    - Conocimiento: Experto en finanzas personales, ahorro, presupuesto, cultivo casero y planificación familiar, todo adaptado al contexto argentino.
-
-    Herramientas Internas de Resi (Tus propias herramientas):
-    - "Módulo Financiero": Incluye un "Planificador" para asignar presupuestos, "Metas de Ahorro" para fijar objetivos, un "Historial" para ver gastos pasados y una sección de "Análisis" con gráficos.
-    - "Módulo de Cultivo": Un planificador para que los usuarios creen su propio huerto casero (hidropónico u orgánico) y así puedan producir sus alimentos y ahorrar dinero.
-    - "Módulo de Planificación Familiar": Una herramienta que genera planes de comidas, ahorro y ocio adaptados a la familia del usuario.
-    - "Registro de Gastos": El usuario puede registrar gastos por voz o texto a través de un botón flotante.
-
-    Ahora tienes acceso a información más profunda del usuario. Úsala para dar consejos increíblemente personalizados:
-    - `risk_profile`: Perfil de riesgo del usuario (Conservador, Moderado, Audaz). Adapta tus sugerencias de ahorro e inversión a esto.
-    - `long_term_goals`: Metas a largo plazo del usuario (ej: "comprar una casa", "jubilarme a los 60"). Ayúdalo a alinear sus decisiones diarias con estas metas.
-    - `last_family_plan`: El último plan familiar que generó. Si pregunta sobre comidas o actividades, básate en este plan.
-    - `last_cultivation_plan`: El último plan de cultivo que generó. Si pregunta sobre su huerta, utiliza este plan como base.
-
-    NUEVA CAPACIDAD: CONTEXTO EN TIEMPO REAL
-    Al inicio de cada conversación, recibirás un bloque de "CONTEXTO EN TIEMPO REAL" con datos económicos actuales. DEBES usar esta información para que tus consejos sean precisos y valiosos.
-    Ejemplo de cómo usar el contexto:
-    - Si el usuario pregunta si le conviene comprar dólares, tu respuesta DEBE basarse en la cotización del Dólar Blue que te fue proporcionada.
-    - Si un usuario quiere invertir, DEBES mencionar la tasa de plazo fijo actual (próximamente) y compararla con la inflación (próximamente) para evaluar si es una buena opción.
-    - NO inventes datos. Si no tienes un dato específico (ej. inflación del mes), acláralo.
-
-    Tus reglas:
-    1.  Integra siempre el contexto del usuario y el contexto en tiempo real en tus respuestas.
-    2.  Si el usuario pregunta algo fuera de tus temas, redirige amablemente la conversación a tus temas centrales.
-    3.  Sé conciso y andá al grano.
-    4.  Utilizá el historial de chat para recordar conversaciones pasadas.
-    5.  NUNCA uses formato Markdown (asteriscos, etc.). Responde siempre en texto plano.
-    6.  MUY IMPORTANTE: Antes de sugerir cualquier herramienta o solución externa, SIEMPRE priorizá y recomendá las "Herramientas Internas de Resi".
-    """)
-    model_chat = genai.GenerativeModel(
-        model_name="gemini-1.5-flash-latest",
-        system_instruction=system_prompt_chat
-    )
-    model_plan_generator = genai.GenerativeModel(
-        model_name="gemini-1.5-flash-latest",
-        system_instruction="Tu única tarea es actuar como un experto en cultivo, diseñando planes de cultivo detallados en formato JSON. DEBES seguir las instrucciones de formato y contenido al pie de la letra."
-    )
-    # Inicializar el modelo para validar parámetros
-    model_validator = genai.GenerativeModel(
-        model_name="gemini-1.5-flash-latest",
-        system_instruction="Tu única tarea es analizar los parámetros de cultivo de un usuario y generar un JSON con recomendaciones específicas, rápidas y prácticas. DEBES responder solo con el JSON y nada más."
-    )
-    # Inicializar el nuevo modelo para generar planes familiares
-    model_family_plan_generator = genai.GenerativeModel(
-        model_name="gemini-1.5-flash-latest",
-        system_instruction="Tu única tarea es actuar como un experto en planificación familiar, creando planes personalizados en formato JSON."
-    )
 
 origins = [
     "http://localhost:3000",
@@ -114,7 +53,6 @@ app.include_router(gamification.router)
 def read_root():
     return {"status": "ok", "version": "4.0.0"}
 
-# CORRECCIÓN: Función síncrona
 @app.post("/transcribe")
 def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     try:
@@ -128,7 +66,6 @@ def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(g
         )
         audio_source = speech.RecognitionAudio(content=wav_audio_content)
         
-        # Se ejecuta la llamada síncrona al cliente de speech
         response = speech_client.recognize(config=config, audio=audio_source)
         
         transcripts = [result.alternatives[0].transcript for result in response.results]
@@ -152,7 +89,6 @@ def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(g
         print(f"Error detallado en la transcripción: {e}")
         raise HTTPException(status_code=400, detail=f"Error en la transcripción: No se pudo procesar el audio.")
 
-# CORRECCIÓN: Función síncrona
 @app.post("/process-text")
 def process_text(input_data: TextInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     parsed_data = parse_expense_with_gemini(input_data.text, db, user.email)
@@ -166,13 +102,11 @@ def process_text(input_data: TextInput, db: Session = Depends(get_db), user: Use
     else:
         return {"status": "No se pudo categorizar el gasto", "data": {"description": input_data.text}}
 
-# CORRECCIÓN: Función síncrona
 @app.get("/chat/history", response_model=List[ChatMessageResponse])
 def get_chat_history(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     history = db.query(ChatMessage).filter(ChatMessage.user_email == user.email).order_by(ChatMessage.timestamp.asc()).all()
     return history
 
-# CORRECCIÓN: Función síncrona
 @app.post("/chat")
 def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     db.add(ChatMessage(user_email=user.email, sender="user", message=request.question))
@@ -224,12 +158,10 @@ def ai_chat(request: AIChatInput, db: Session = Depends(get_db), user: User = De
         print(f"Error al procesar la solicitud con la IA: {e}")
         raise HTTPException(status_code=500, detail=f"Error al procesar la solicitud con la IA: {e}")
 
-# CORRECCIÓN: Función síncrona
 @app.get("/check-onboarding")
 def check_onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     return {"onboarding_completed": user.has_completed_onboarding if user else False}
 
-# CORRECCIÓN: Función síncrona
 @app.post("/onboarding-complete")
 def onboarding_complete(onboarding_data: OnboardingData, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     user.has_completed_onboarding = True

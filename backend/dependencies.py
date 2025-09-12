@@ -7,10 +7,70 @@ import textwrap
 import google.generativeai as genai
 from sqlalchemy import func
 from datetime import datetime
+import os
 
 from database import SessionLocal, User, BudgetItem, GameProfile, Achievement, UserAchievement, Expense, SavingGoal
 from schemas import ExpenseData, GoalInput, BudgetInput, CultivationPlanRequest, CultivationPlanResult, ValidateParamsRequest, FamilyPlanRequest, FamilyPlanResponse
-from main import model_plan_generator, model_validator, model_family_plan_generator
+# Se eliminó la importación de 'main', evitando el error de dependencia circular
+
+# --- CONFIGURACIÓN E INICIALIZACIÓN DE LOS MODELOS DE IA ---
+# Se movió aquí para evitar la dependencia circular.
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+model_chat = genai.GenerativeModel(
+    model_name="gemini-1.5-flash-latest",
+    system_instruction=textwrap.dedent("""
+    Eres "Resi", un asistente de IA amigable, empático y experto en resiliencia económica y alimentaria para usuarios en Argentina. Tu propósito es empoderar a las personas para que tomen el control de sus finanzas y bienestar.
+
+    Tu personalidad:
+    - Tono: Cercano, motivador y práctico. Usá un lenguaje coloquial argentino (ej: "vos" en lugar de "tú", "plata" en lugar de "dinero").
+    - Enfoque: Siempre positivo y orientado a soluciones. No juzgues, solo ayudá.
+    - Conocimiento: Experto en finanzas personales, ahorro, presupuesto, cultivo casero y planificación familiar, todo adaptado al contexto argentino.
+
+    Herramientas Internas de Resi (Tus propias herramientas):
+    - "Módulo Financiero": Incluye un "Planificador" para asignar presupuestos, "Metas de Ahorro" para fijar objetivos, un "Historial" para ver gastos pasados y una sección de "Análisis" con gráficos.
+    - "Módulo de Cultivo": Un planificador para que los usuarios creen su propio huerto casero (hidropónico u orgánico) y así puedan producir sus alimentos y ahorrar dinero.
+    - "Módulo de Planificación Familiar": Una herramienta que genera planes de comidas, ahorro y ocio adaptados a la familia del usuario.
+    - "Registro de Gastos": El usuario puede registrar gastos por voz o texto a través de un botón flotante.
+
+    Ahora tienes acceso a información más profunda del usuario. Úsala para dar consejos increíblemente personalizados:
+    - `risk_profile`: Perfil de riesgo del usuario (Conservador, Moderado, Audaz). Adapta tus sugerencias de ahorro e inversión a esto.
+    - `long_term_goals`: Metas a largo plazo del usuario (ej: "comprar una casa", "jubilarme a los 60"). Ayúdalo a alinear sus decisiones diarias con estas metas.
+    - `last_family_plan`: El último plan familiar que generó. Si pregunta sobre comidas o actividades, básate en este plan.
+    - `last_cultivation_plan`: El último plan de cultivo que generó. Si pregunta sobre su huerta, utiliza este plan como base.
+
+    NUEVA CAPACIDAD: CONTEXTO EN TIEMPO REAL
+    Al inicio de cada conversación, recibirás un bloque de "CONTEXTO EN TIEMPO REAL" con datos económicos actuales. DEBES usar esta información para que tus consejos sean precisos y valiosos.
+    Ejemplo de cómo usar el contexto:
+    - Si el usuario pregunta si le conviene comprar dólares, tu respuesta DEBE basarse en la cotización del Dólar Blue que te fue proporcionada.
+    - Si un usuario quiere invertir, DEBES mencionar la tasa de plazo fijo actual (próximamente) y compararla con la inflación (próximamente) para evaluar si es una buena opción.
+    - NO inventes datos. Si no tienes un dato específico (ej. inflación del mes), acláralo.
+
+    Tus reglas:
+    1.  Integra siempre el contexto del usuario y el contexto en tiempo real en tus respuestas.
+    2.  Si el usuario pregunta algo fuera de tus temas, redirige amablemente la conversación a tus temas centrales.
+    3.  Sé conciso y andá al grano.
+    4.  Utilizá el historial de chat para recordar conversaciones pasadas.
+    5.  NUNCA uses formato Markdown (asteriscos, etc.). Responde siempre en texto plano.
+    6.  MUY IMPORTANTE: Antes de sugerir cualquier herramienta o solución externa, SIEMPRE priorizá y recomendá las "Herramientas Internas de Resi".
+    """)
+)
+
+model_plan_generator = genai.GenerativeModel(
+    model_name="gemini-1.5-flash-latest",
+    system_instruction="Tu única tarea es actuar como un experto en cultivo, diseñando planes de cultivo detallados en formato JSON. DEBES seguir las instrucciones de formato y contenido al pie de la letra."
+)
+
+model_validator = genai.GenerativeModel(
+    model_name="gemini-1.5-flash-latest",
+    system_instruction="Tu única tarea es analizar los parámetros de cultivo de un usuario y generar un JSON con recomendaciones específicas, rápidas y prácticas. DEBES responder solo con el JSON y nada más."
+)
+
+model_family_plan_generator = genai.GenerativeModel(
+    model_name="gemini-1.5-flash-latest",
+    system_instruction="Tu única tarea es actuar como un experto en planificación familiar, creando planes personalizados en formato JSON."
+)
+# --- FIN DE LA INICIALIZACIÓN ---
 
 def get_db():
     db = SessionLocal()
@@ -140,7 +200,6 @@ def generate_plan_with_gemini(request: CultivationPlanRequest, user: User) -> Cu
     """
     global model_plan_generator
     
-    # Creamos un prompt específico para la generación de planes
     plan_prompt = textwrap.dedent(f"""
     Basado en los siguientes datos del usuario:
     - Método: {request.method}
@@ -171,7 +230,6 @@ def generate_plan_with_gemini(request: CultivationPlanRequest, user: User) -> Cu
         response = model_plan_generator.generate_content(plan_prompt)
         parsed_plan = json.loads(response.text)
         
-        # Validar el plan generado con nuestro esquema Pydantic para asegurar que sea correcto
         validated_plan = CultivationPlanResult(**parsed_plan)
         return validated_plan
         
@@ -185,7 +243,6 @@ def validate_parameters_with_gemini(request: ValidateParamsRequest):
     """
     global model_validator
     
-    # Creamos un prompt dinámico para validar los parámetros
     validation_prompt = textwrap.dedent(f"""
     Analiza los siguientes parámetros de cultivo:
     - Método: {request.method}
@@ -216,7 +273,6 @@ def validate_parameters_with_gemini(request: ValidateParamsRequest):
         response = model_validator.generate_content(validation_prompt, generation_config={"response_mime_type": "application/json"})
         parsed_response = json.loads(response.text)
         
-        # Devolver el resultado validado
         return parsed_response
         
     except Exception as e:
@@ -229,7 +285,6 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
     """
     global model_family_plan_generator
 
-    # Se obtienen los datos financieros del usuario para dar un consejo de presupuesto más preciso
     user_email = db.query(User).filter(User.email == request.user_email).first().email
     user_income = db.query(BudgetItem).filter(BudgetItem.user_email == user_email, BudgetItem.category == "_income").first().allocated_amount
     
@@ -260,7 +315,6 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session):
         response = model_family_plan_generator.generate_content(plan_prompt, generation_config={"response_mime_type": "application/json"})
         parsed_plan = json.loads(response.text)
         
-        # Validar el plan generado con el esquema Pydantic
         validated_plan = FamilyPlanResponse(**parsed_plan)
         return validated_plan
         
