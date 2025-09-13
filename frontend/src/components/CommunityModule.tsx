@@ -6,7 +6,7 @@ import apiClient from '@/lib/apiClient';
 import toast from 'react-hot-toast';
 import { 
     FaBullhorn, FaPlus, FaStar, FaStore, FaUsers, FaMapMarkedAlt, 
-    FaShoppingBasket, FaCommentDots, FaExclamationTriangle, FaQrcode,
+    FaShoppingBasket, FaCommentDots, FaExclamationTriangle, FaQrcode, 
     FaCoins, FaCamera, FaTimes, FaSpinner, FaReceipt
 } from 'react-icons/fa';
 import Modal from './Modal';
