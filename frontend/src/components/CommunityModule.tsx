@@ -6,13 +6,14 @@ import apiClient from '@/lib/apiClient';
 import toast from 'react-hot-toast';
 import { 
     FaBullhorn, FaPlus, FaStar, FaStore, FaUsers, FaMapMarkedAlt, 
-    FaShoppingBasket, FaCommentDots, FaExclamationTriangle, FaQrcode, 
+    FaShoppingBasket, FaCommentDots, FaExclamationTriangle, FaQrcode,
     FaCoins, FaCamera, FaTimes, FaSpinner, FaReceipt
 } from 'react-icons/fa';
 import Modal from './Modal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { QrReader } from 'react-qr-reader';
+import InfoTooltip from './InfoTooltip'; // Importar el componente de tooltip
 
 // --- DEFINICIÓN DE TIPOS DE DATOS ---
 interface CommunityPost { id: number; title: string; content: string; category: string; user_email: string; created_at: string; is_featured: boolean; }
@@ -23,6 +24,28 @@ type ActiveTab = 'posts' | 'market' | 'events' | 'transactions';
 
 
 // --- SUB-COMPONENTES VISUALES REUTILIZABLES ---
+
+/**
+ * Guía rápida que explica el funcionamiento del mercado.
+ */
+const MarketplaceGuide: FC = () => (
+    <div className="bg-gray-900/50 p-4 rounded-lg mb-6 border-l-4 border-blue-400 text-sm">
+        <h3 className="font-bold text-white text-lg mb-2 flex items-center gap-2">
+            <FaStore /> Guía Rápida del Mercado Resiliente
+        </h3>
+        <ol className="list-decimal list-inside space-y-2 text-gray-300">
+            <li>
+                <strong>Publicá:</strong> Llená el formulario para vender un producto o servicio. El precio es en <strong className="text-yellow-400">Monedas Resilientes</strong>.
+            </li>
+            <li>
+                <strong>Comprá con Seguridad:</strong> Al comprar, tus monedas se retienen de forma segura. No se transferirán al vendedor hasta que ambos confirmen la entrega.
+            </li>
+            <li>
+                <strong>Confirmá con el QR:</strong> Al encontrarte con la otra persona, el comprador muestra un código QR y el vendedor lo escanea para confirmar la entrega. ¡Este es el <strong className="text-green-400">Apretón de Manos Digital</strong> que libera el pago!
+            </li>
+        </ol>
+    </div>
+);
 
 /**
  * Botón de Pestaña para la navegación principal del módulo.
@@ -269,38 +292,36 @@ export default function CommunityModule() {
         }
     };
     
-   const handleCreateMarketItem = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!newItem.name || !newItem.price) { toast.error("Nombre y precio son obligatorios."); return; }
-    const toastId = toast.loading("Publicando producto...");
-    try {
-        // CORRECCIÓN: Usar FormData para enviar imagen y datos
-        const formData = new FormData();
-        formData.append('name', newItem.name);
-        formData.append('description', newItem.description);
-        formData.append('price', newItem.price);
-        formData.append('is_service', String(newItem.is_service));
-
-        if (itemImage) {
-            formData.append('file', itemImage);
-        }
-
-        await apiClient.post('/market/items', formData, {
-            headers: {
-                'Authorization': `Bearer ${session?.user?.email}`,
-                // 'Content-Type': 'multipart/form-data' // Axios lo establece automáticamente
+    const handleCreateMarketItem = async (e: FormEvent) => {
+        e.preventDefault();
+        if (!newItem.name || !newItem.price) { toast.error("Nombre y precio son obligatorios."); return; }
+        const toastId = toast.loading("Publicando producto...");
+        try {
+            const formData = new FormData();
+            formData.append('name', newItem.name);
+            formData.append('description', newItem.description);
+            formData.append('price', newItem.price);
+            formData.append('is_service', String(newItem.is_service));
+    
+            if (itemImage) {
+                formData.append('file', itemImage);
             }
-        });
-
-        toast.success("¡Producto publicado en el mercado!", { id: toastId }); // Mensaje final productivo
-        setNewItem({ name: '', description: '', price: '', is_service: false });
-        setImagePreview(null);
-        setItemImage(null);
-        fetchData('market');
-    } catch (error: any) {
-        toast.error(error.response?.data?.detail || "No se pudo publicar el producto.", { id: toastId });
-    }
-};
+    
+            await apiClient.post('/market/items', formData, {
+                headers: {
+                    'Authorization': `Bearer ${session?.user?.email}`,
+                }
+            });
+    
+            toast.success("¡Producto publicado en el mercado!", { id: toastId });
+            setNewItem({ name: '', description: '', price: '', is_service: false });
+            setImagePreview(null);
+            setItemImage(null);
+            fetchData('market');
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || "No se pudo publicar el producto.", { id: toastId });
+        }
+    };
     
     const handleFeaturePost = async (id: number) => {
         if (!isPremiumUser) { setIsPremiumModalVisible(true); return; }
@@ -406,17 +427,22 @@ export default function CommunityModule() {
                         
                         {!isLoading && activeTab === 'market' && (
                            <div>
+                                <MarketplaceGuide />
                                 <form onSubmit={handleCreateMarketItem} className="bg-gray-700 p-4 rounded-lg mb-6 space-y-3">
                                     <h3 className="font-bold text-lg text-white">Vender en el Mercado</h3>
                                     <input type="text" placeholder="Nombre del Producto o Servicio" value={newItem.name} onChange={(e) => setNewItem({...newItem, name: e.target.value})} className="w-full p-2 bg-gray-800 rounded-md border border-gray-600" />
                                     <textarea placeholder="Descripción detallada" value={newItem.description} onChange={(e) => setNewItem({...newItem, description: e.target.value})} className="w-full p-2 bg-gray-800 rounded-md border border-gray-600 h-20" />
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                         <div className="relative">
-                                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-yellow-400"><FaCoins /></span>
-                                            <input type="number" placeholder="Precio" value={newItem.price} onChange={(e) => setNewItem({...newItem, price: e.target.value})} className="w-full p-2 pl-10 bg-gray-800 rounded-md border border-gray-600" />
+                                            <div className="flex items-center">
+                                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-yellow-400"><FaCoins /></span>
+                                                <input type="number" placeholder="Precio" value={newItem.price} onChange={(e) => setNewItem({...newItem, price: e.target.value})} className="w-full p-2 pl-10 bg-gray-800 rounded-md border border-gray-600" />
+                                                <InfoTooltip text="El precio se establece en Monedas Resilientes, la moneda interna de la comunidad." />
+                                            </div>
                                         </div>
                                         <div className="flex items-center justify-center bg-gray-800 rounded-md border border-gray-600 px-3">
                                             <label className="flex items-center gap-2 text-white cursor-pointer"><input type="checkbox" checked={newItem.is_service} onChange={(e) => setNewItem({...newItem, is_service: e.target.checked})} className="form-checkbox h-5 w-5 text-green-500 bg-gray-900 border-gray-600 rounded" /> Es un Servicio</label>
+                                            <InfoTooltip text="Marcá esta opción si no estás vendiendo un producto físico (ej: clases, reparaciones, etc.)." />
                                         </div>
                                         <label htmlFor="item-image-upload" className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md flex items-center justify-center gap-2"><FaCamera/> Subir Foto</label>
                                         <input id="item-image-upload" type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
@@ -450,7 +476,10 @@ export default function CommunityModule() {
                         {!isLoading && activeTab === 'transactions' && (
                             <div className="space-y-6">
                                 <div>
-                                    <h3 className="text-xl font-bold text-white mb-4">Mis Compras</h3>
+                                    <h3 className="text-xl font-bold text-white mb-4 flex items-center">
+                                        Mis Compras
+                                        <InfoTooltip text="Aquí ves los productos que reservaste. Muestra el QR al vendedor cuando recibas tu producto para completar la transacción." />
+                                    </h3>
                                     <div className="space-y-2">
                                         {myTransactions.filter(t => t.buyer_email === session?.user?.email).map(tx => (
                                             <div key={tx.id} className="bg-gray-700 p-3 rounded-md flex justify-between items-center">
@@ -461,7 +490,10 @@ export default function CommunityModule() {
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-bold text-white mb-4">Mis Ventas</h3>
+                                    <h3 className="text-xl font-bold text-white mb-4 flex items-center">
+                                        Mis Ventas
+                                        <InfoTooltip text="Aquí ves los productos que vendiste. Para recibir tus monedas, haz clic en 'Confirmar Entrega' y escanea el QR del comprador cuando le entregues el producto." />
+                                    </h3>
                                     <div className="space-y-2">
                                         {myTransactions.filter(t => t.seller_email === session?.user?.email).map(tx => (
                                             <div key={tx.id} className="bg-gray-700 p-3 rounded-md flex justify-between items-center">
@@ -479,4 +511,3 @@ export default function CommunityModule() {
         </>
     );
 }
-
