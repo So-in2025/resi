@@ -1,7 +1,11 @@
+# En: backend/routers/marketplace.py
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.orm import Session
 from typing import List
 import uuid
+import shutil
+import os
+from datetime import datetime
 
 from database import User, MarketplaceItem, Transaction, GameProfile
 from schemas import MarketplaceItemCreate, MarketplaceItemResponse, TransactionResponse
@@ -13,7 +17,7 @@ router = APIRouter(
 )
 
 @router.post("/items", response_model=MarketplaceItemResponse)
-def create_marketplace_item(item: MarketplaceItemCreate, file: UploadFile = File(None), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+def create_marketplace_item(item: MarketplaceItemCreate = Depends(), file: UploadFile = File(None), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     """
     Crea un nuevo item en el marketplace.
     Ahora maneja la subida de la imagen a una carpeta estática local.
@@ -91,7 +95,6 @@ def confirm_transaction(transaction_id: int, db: Session = Depends(get_db), user
 
     seller_profile = db.query(GameProfile).filter(GameProfile.user_email == user.email).first()
     if not seller_profile:
-        # Esto no debería pasar si el usuario existe, pero es una buena práctica de validación
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil del vendedor no encontrado.")
 
     # Liberar fondos al vendedor
@@ -113,4 +116,3 @@ def get_my_transactions(db: Session = Depends(get_db), user: User = Depends(get_
         (Transaction.buyer_email == user.email) | (Transaction.seller_email == user.email)
     ).order_by(Transaction.timestamp.desc()).all()
     return transactions
-

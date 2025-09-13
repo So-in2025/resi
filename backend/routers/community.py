@@ -71,21 +71,3 @@ def get_community_events(skip: int = 0, limit: int = 20, db: Session = Depends(g
     """Obtiene los próximos eventos comunitarios."""
     events = db.query(CommunityEvent).order_by(CommunityEvent.event_date.asc()).offset(skip).limit(limit).all()
     return events
-
-# --- AÑADE ESTA NUEVA FUNCIÓN AL FINAL DEL ARCHIVO ---
-@router.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_community_post(post_id: int, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
-    """
-    Elimina una publicación. Solo el autor de la publicación puede eliminarla.
-    """
-    post_to_delete = db.query(CommunityPost).filter(CommunityPost.id == post_id).first()
-
-    if not post_to_delete:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Publicación no encontrada.")
-
-    if post_to_delete.user_email != user.email:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permiso para eliminar esta publicación.")
-
-    db.delete(post_to_delete)
-    db.commit()
-    return

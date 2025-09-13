@@ -60,11 +60,6 @@ class Transaction(Base):
     status = Column(String, default="pending")  # pending, completed, cancelled
     confirmation_code = Column(String, unique=True, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    
-    # --- AÑADE ESTAS LÍNEAS ---
-    item = relationship("MarketplaceItem")
-    seller = relationship("User", foreign_keys=[seller_email], back_populates="sales")
-    buyer = relationship("User", foreign_keys=[buyer_email], back_populates="purchases")
 
 class Subscription(Base):
     __tablename__ = "subscriptions"
@@ -100,9 +95,6 @@ class User(Base):
     community_events = relationship("CommunityEvent", back_populates="organizer")
     marketplace_items = relationship("MarketplaceItem", back_populates="seller")
     subscription = relationship("Subscription", back_populates="owner", uselist=False)
-    # --- AÑADE ESTAS LÍNEAS ---
-    sales = relationship("Transaction", foreign_keys=[Transaction.seller_email], back_populates="seller")
-    purchases = relationship("Transaction", foreign_keys=[Transaction.buyer_email], back_populates="buyer")
 
 class Expense(Base):
     __tablename__ = "expenses"
@@ -209,4 +201,3 @@ class CultivationTask(Base):
 
 def create_db_and_tables():
     Base.metadata.create_all(bind=engine)
-
