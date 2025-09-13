@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { 
     FaBullhorn, FaPlus, FaStar, FaStore, FaUsers, FaMapMarkedAlt, 
     FaShoppingBasket, FaCommentDots, FaExclamationTriangle, FaQrcode, 
-    FaCoins, FaCamera, FaTimes, FaSpinner, FaReceipt
+    FaCoins, FaCamera, FaTimes, FaSpinner, FaReceipt, FaTrashAlt
 } from 'react-icons/fa';
 import Modal from './Modal';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -404,7 +404,7 @@ export default function CommunityModule() {
         }
     };
 
-    
+
     // --- RENDERIZADO DEL COMPONENTE ---
     return (
         <>
@@ -434,7 +434,16 @@ export default function CommunityModule() {
                                         <button type="submit" className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md flex items-center justify-center gap-2"><FaPlus /> Publicar</button>
                                     </div>
                                 </form>
-                                <div className="space-y-4">{posts.length > 0 ? posts.map(post => <PostCard key={post.id} post={post} onFeature={handleFeaturePost} onContact={(email) => toast(`Simulando chat con ${email}`)} onReport={(id) => toast.error(`Reportando post #${id}`)} currentUserEmail={session?.user?.email} isPremium={isPremiumUser} />) : <p className="text-center text-gray-400 py-8">Todavía no hay publicaciones. ¡Sé el primero!</p>}</div>
+                                <div className="space-y-4">{posts.length > 0 ? posts.map(post =>
+                                <PostCard 
+                                key={post.id} 
+                                post={post} 
+                                onFeature={handleFeaturePost} 
+                                onContact={(email) => toast(`Simulando chat con ${email}`)} 
+                                onReport={(id) => toast.error(`Reportando post #${id}`)} 
+                                onDelete={handleDeletePost} // <-- AÑADE ESTA LÍNEA 
+                                currentUserEmail={session?.user?.email} 
+                                isPremium={isPremiumUser} />) : <p className="text-center text-gray-400 py-8">Todavía no hay publicaciones. ¡Sé el primero!</p>}</div>
                             </div>
                         )}
                         
