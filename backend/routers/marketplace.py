@@ -13,13 +13,26 @@ router = APIRouter(
 )
 
 @router.post("/items", response_model=MarketplaceItemResponse)
-def create_marketplace_item(item: MarketplaceItemCreate, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+def create_marketplace_item(item: MarketplaceItemCreate = Depends(), file: UploadFile = File(None), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     """
     Crea un nuevo item en el marketplace.
-    En una implementación real, aquí se manejaría la subida de la imagen a un bucket (S3, Cloud Storage)
-    y se guardaría la URL en `item.image_url`.
+    Ahora maneja la subida de la imagen a una carpeta estática local.
     """
-    new_item = MarketplaceItem(**item.dict(), user_email=user.email)
+    image_url = None
+    if file and file.filename:
+        # Definimos una ruta segura para guardar el archivo
+        file_location = f"static/images/{user.email.split('@')[0]}_{datetime.utcnow().timestamp()}_{file.filename}"
+        
+        with open(file_location, "wb+") as file_object:
+            shutil.copyfileobj(file.file, file_object)
+        
+        # En producción, esta URL base debería venir de una variable de entorno
+        BASE_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
+        image_url = f"{BASE_URL}/{file_location}"
+
+    new_item_data = item.dict()
+    new_item_data['image_url'] = image_url
+    new_item = MarketplaceItem(**new_item_data, user_email=user.email)
     db.add(new_item)
     db.commit()
     db.refresh(new_item)

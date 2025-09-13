@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fa';
 import Modal from './Modal';
 import { motion, AnimatePresence } from 'framer-motion';
-import QRCode from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import { QrReader } from 'react-qr-reader';
 
 // --- DEFINICIÓN DE TIPOS DE DATOS ---
@@ -152,7 +152,7 @@ const TransactionModal: FC<{ isOpen: boolean; onClose: () => void; transaction: 
                         <h3 className="text-xl font-bold text-white">Mostrá este QR al vendedor</h3>
                         <p>Para confirmar que recibiste el producto, el vendedor debe escanear este código.</p>
                         <div className="bg-white p-4 rounded-lg inline-block">
-                            <QRCode value={transaction.confirmation_code} size={200} />
+                            <QRCodeSVG value={transaction.confirmation_code} size={200} />
                         </div>
                     </>
                 )}
@@ -269,24 +269,38 @@ export default function CommunityModule() {
         }
     };
     
-    const handleCreateMarketItem = async (e: FormEvent) => {
-        e.preventDefault();
-        if (!newItem.name || !newItem.price) { toast.error("Nombre y precio son obligatorios."); return; }
-        const toastId = toast.loading("Publicando producto...");
-        try {
-            // Lógica de subida de imagen iría aquí
-            // const imageUrl = await uploadImage(itemImage); 
-            const itemData = { ...newItem, price: parseFloat(newItem.price) };
-            await apiClient.post('/market/items', itemData, { headers: { 'Authorization': `Bearer ${session?.user?.email}` } });
-            toast.success("Producto publicado.", { id: toastId });
-            setNewItem({ name: '', description: '', price: '', is_service: false });
-            setImagePreview(null);
-            setItemImage(null);
-            fetchData('market');
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || "No se pudo publicar el producto.", { id: toastId });
+   const handleCreateMarketItem = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newItem.name || !newItem.price) { toast.error("Nombre y precio son obligatorios."); return; }
+    const toastId = toast.loading("Publicando producto...");
+    try {
+        // CORRECCIÓN: Usar FormData para enviar imagen y datos
+        const formData = new FormData();
+        formData.append('name', newItem.name);
+        formData.append('description', newItem.description);
+        formData.append('price', newItem.price);
+        formData.append('is_service', String(newItem.is_service));
+
+        if (itemImage) {
+            formData.append('file', itemImage);
         }
-    };
+
+        await apiClient.post('/market/items', formData, {
+            headers: {
+                'Authorization': `Bearer ${session?.user?.email}`,
+                // 'Content-Type': 'multipart/form-data' // Axios lo establece automáticamente
+            }
+        });
+
+        toast.success("¡Producto publicado en el mercado!", { id: toastId }); // Mensaje final productivo
+        setNewItem({ name: '', description: '', price: '', is_service: false });
+        setImagePreview(null);
+        setItemImage(null);
+        fetchData('market');
+    } catch (error: any) {
+        toast.error(error.response?.data?.detail || "No se pudo publicar el producto.", { id: toastId });
+    }
+};
     
     const handleFeaturePost = async (id: number) => {
         if (!isPremiumUser) { setIsPremiumModalVisible(true); return; }

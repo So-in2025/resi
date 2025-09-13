@@ -189,7 +189,6 @@ class MarketplaceItemResponse(MarketplaceItemBase):
     class Config:
         from_attributes = True
 
-# --- CORRECCIÓN CRÍTICA: SCHEMA FALTANTE AÑADIDO ---
 class TransactionResponse(BaseModel):
     id: int
     item_id: int
@@ -201,3 +200,5 @@ class TransactionResponse(BaseModel):
     timestamp: datetime
     class Config:
         from_attributes = True
+
+        

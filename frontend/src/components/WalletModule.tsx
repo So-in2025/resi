@@ -6,6 +6,7 @@ import apiClient from '@/lib/apiClient';
 import toast from 'react-hot-toast';
 import { FaCoins, FaHistory, FaPlus, FaSpinner } from 'react-icons/fa';
 
+
 interface Transaction {
     id: number;
     amount: number;
@@ -14,6 +15,7 @@ interface Transaction {
     buyer_email: string;
     seller_email: string;
     timestamp: string;
+    confirmation_code: string; // <-- Añadir esta línea
 }
 
 interface WalletData {

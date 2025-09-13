@@ -35,6 +35,11 @@ def startup_event():
     # 2. Inicializar cliente de Google Speech
     speech_client = speech.SpeechClient()
 
+    os.makedirs("static/images", exist_ok=True)
+
+# Montar directorio estático después de la inicialización de la app
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 origins = [
     "http://localhost:3000",
     "https://resi-argentina.vercel.app",
