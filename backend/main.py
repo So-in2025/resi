@@ -14,7 +14,7 @@ from database import create_db_and_tables, User, Expense, ChatMessage, BudgetIte
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse, CultivationPlanResponse, CultivationPlanResult, HarvestLogInput, HarvestLogResponse, CultivationTaskInput, CultivationTaskResponse, FamilyPlanRequest, FamilyPlanResponse
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement, generate_plan_with_gemini, validate_parameters_with_gemini, generate_family_plan_with_gemini
 from dependencies import model_chat
-from routers import finance, cultivation, family, market_data, gamification, community # IMPORTAMOS EL NUEVO ROUTER
+from routers import finance, cultivation, family, market_data, gamification, community, marketplace, subscription # IMPORTAMOS NUEVOS ROUTERS
 import routers.services as services
 
 app = FastAPI(title="Resi API", version="5.0.0") # Versión actualizada
@@ -48,6 +48,8 @@ app.include_router(family.router)
 app.include_router(market_data.router)
 app.include_router(gamification.router)
 app.include_router(community.router) # AÑADIMOS EL NUEVO ROUTER AQUÍ
+app.include_router(marketplace.router) # AÑADIDO
+app.include_router(subscription.router) # AÑADIDO
 
 @app.get("/")
 def read_root():
