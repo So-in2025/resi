@@ -10,33 +10,44 @@ router = APIRouter(
     tags=["Subscriptions"]
 )
 
-@router.post("/premium", response_model=dict)
+@router.post("/premium")
 def upgrade_to_premium(db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     """
-    Actualiza la suscripción de un usuario a Premium.
-    En un entorno real, esto sería llamado por un webhook de la pasarela de pago.
+    Actualiza el estado de un usuario a Premium.
+    En un caso real, esto sería llamado por un webhook de una pasarela de pago.
     """
     if user.is_premium:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El usuario ya es Premium.")
 
-    # Actualiza el estado del usuario
     user.is_premium = True
     
-    # Registra la suscripción
-    existing_subscription = db.query(Subscription).filter(Subscription.user_email == user.email).first()
-    if existing_subscription:
-        existing_subscription.plan_name = "Premium"
-        existing_subscription.start_date = datetime.utcnow()
-        existing_subscription.end_date = datetime.utcnow() + timedelta(days=30) # Suscripción de 30 días
-        existing_subscription.payment_id = "simulated_payment_id"
-    else:
-        new_subscription = Subscription(
-            user_email=user.email,
-            plan_name="Premium",
-            end_date=datetime.utcnow() + timedelta(days=30)
-        )
-        db.add(new_subscription)
-        
+    # Crear o actualizar el registro de suscripción
+    subscription = db.query(Subscription).filter(Subscription.user_email == user.email).first()
+    if not subscription:
+        subscription = Subscription(user_email=user.email)
+        db.add(subscription)
+    
+    subscription.plan_name = "Premium"
+    subscription.start_date = datetime.utcnow()
+    subscription.end_date = datetime.utcnow() + timedelta(days=30) # Suscripción de 30 días
+    subscription.payment_id = "simulated_payment_id_premium" # Placeholder
+
     db.commit()
     
-    return {"message": f"¡Felicitaciones! Ahora eres un miembro Premium de Resi."}
+    return {"status": "success", "message": "¡Felicitaciones! Ahora eres un miembro Premium."}
+
+@router.post("/buy-coins")
+def buy_coins(amount: int, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    """
+    Añade monedas resilientes a la cuenta del usuario.
+    En un caso real, esto sería llamado por un webhook de una pasarela de pago.
+    """
+    profile = user.game_profile
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil de juego no encontrado.")
+
+    profile.resilient_coins += amount
+    db.commit()
+    
+    return {"status": "success", "message": f"Se han añadido {amount} Monedas Resilientes a tu billetera."}
+

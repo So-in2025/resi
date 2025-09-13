@@ -55,8 +55,8 @@ const UpdatesLogModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
         <h3 className="text-xl font-semibold text-green-400 mb-2">Hitos del Proyecto: Un Camino en Crecimiento</h3>
         
         {/* Hito 1 */}
-        <div className="mb-4">
-            <h4 className="font-semibold text-white">Fase 1: Asistencia a Medida</h4>
+         <div className="mb-4 p-4 bg-green-900/50 border border-green-500 rounded-lg">
+            <h4 className="font-semibold text-green-300">Fase 1: Asistencia a Medida</h4>
             <p className="text-gray-400">Creamos las bases para que Resi entienda tus necesidades de manera única.</p>
             <ul className="list-disc list-inside space-y-1 text-gray-400 mt-2">
                 <li><span className="font-semibold text-white">Perfil Inteligente:</span> Al iniciar, Resi te conoce a fondo con un proceso guiado que define tu perfil financiero y tus metas a largo plazo.</li>
@@ -66,8 +66,8 @@ const UpdatesLogModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
         </div>
 
         {/* Hito 2 */}
-        <div className="mb-4">
-            <h4 className="font-semibold text-white">Fase 2: Conexión con el Entorno</h4>
+         <div className="mb-4 p-4 bg-green-900/50 border border-green-500 rounded-lg">
+            <h4 className="font-semibold text-green-300">Fase 2: Conexión con el Entorno</h4>
             <p className="text-gray-400">Integramos a Resi con el mundo real para que sus consejos sean siempre actuales.</p>
             <ul className="list-disc list-inside space-y-1 text-gray-400 mt-2">
                 <li><span className="font-semibold text-white">Datos en Tiempo Real:</span> Conectamos la plataforma a fuentes de información confiables para que Resi esté al tanto de la realidad económica.</li>
@@ -76,8 +76,8 @@ const UpdatesLogModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
         </div>
 
         {/* Hito 3 */}
-        <div className="mb-4">
-            <h4 className="font-semibold text-white">Fase 3: Módulos de Crecimiento y Productividad</h4>
+         <div className="mb-4 p-4 bg-green-900/50 border border-green-500 rounded-lg">
+            <h4 className="font-semibold text-green-300">Fase 3: Módulos de Crecimiento y Productividad</h4>
             <p className="text-gray-400">Ampliamos la plataforma para que Resi te acompañe en más aspectos de tu vida diaria.</p>
             <ul className="list-disc list-inside space-y-1 text-gray-400 mt-2">
                 <li><span className="font-semibold text-white">Planificación Familiar:</span> Creación de un módulo completo que genera planes de comidas, ahorro y ocio, adaptados a la dinámica de tu hogar.</li>
@@ -88,12 +88,23 @@ const UpdatesLogModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
         </div>
         
         {/* Hito 4 */}
-        <div className="mb-4">
-            <h4 className="font-semibold text-white">Fase 4: Compromiso y Crecimiento Personal</h4>
-            <p className="text-gray-400">Creamos un sistema de recompensas para hacer del progreso un hábito motivador.</p>
+         <div className="mb-4 p-4 bg-green-900/50 border border-green-500 rounded-lg">
+            <h4 className="font-semibold text-green-300">Fase 4: Creamos un sistema de recompensas para hacer del progreso un hábito motivador.</h4>
             <ul className="list-disc list-inside space-y-1 text-gray-400 mt-2">
                 <li><span className="font-semibold text-white">Gamificación:</span> Implementamos un sistema de logros, puntos y monedas virtuales que te premia por cada paso que das.</li>
                 <li><span className="font-semibold text-white">ResiScore:</span> Presentamos tu Índice de Resiliencia, un puntaje que mide tu evolución y te motiva a mejorar continuamente en tu camino a la estabilidad.</li>
+            </ul>
+        </div>
+
+        {/* --- HITO 5 (NUEVO Y DETALLADO) --- */}
+        <div className="mb-4 p-4 bg-green-900/50 border border-green-500 rounded-lg">
+            <h4 className="font-semibold text-green-300">Fase 5: Hacia una Economía Circular Productiva (V5.0)</h4>
+            <p className="text-gray-300">Transformamos a Resi en un ecosistema económico autosostenible, activando el verdadero potencial de la comunidad.</p>
+            <ul className="list-disc list-inside space-y-1 text-gray-300 mt-2">
+                <li><span className="font-semibold text-white">Billetera Resiliente:</span> Se implementó el Panel de Control del usuario, mostrando el saldo de Monedas Resilientes y el historial de transacciones.</li>
+                <li><span className="font-semibold text-white">Mercado Transaccional:</span> El Módulo de Comunidad ahora incluye un mercado funcional con publicación de productos (con imágenes), precios en monedas y el flujo de compra segura con "Apretón de Manos Digital" (QR).</li>
+                <li><span className="font-semibold text-white">Eventos Comunitarios:</span> Los usuarios ya pueden crear y anunciar sus propias ferias, talleres o puntos de trueque.</li>
+                <li><span className="font-semibold text-white">Modelo Premium Activado:</span> La base para la suscripción está lista. Los usuarios gratuitos tienen límites que incentivan la conversión, y los Premium ya gozan de beneficios como publicaciones destacadas.</li>
             </ul>
         </div>
     </div>
@@ -101,10 +112,10 @@ const UpdatesLogModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
     {/* Sección: Visión de Futuro y Monetización */}
     <div className="mb-6">
         <h3 className="text-xl font-semibold text-green-400 mb-2">Visión de Futuro: Crecimiento Sostenible</h3>
-        <p className="text-gray-300">Nuestra estrategia de monetización está pensada para mantener Resi gratuito y accesible para todos. Los ingresos provendrán de servicios a instituciones, lo que nos permite ofrecer la plataforma sin costo para los usuarios.</p>
+        <p className="text-gray-300">Con la economía interna ya funcional, nuestra estrategia de monetización se consolida. Los ingresos por suscripciones Premium y la futura compra de Monedas Resilientes asegurarán la gratuidad de las funciones esenciales y financiarán la expansión de la plataforma.</p>
         <ul className="list-disc list-inside space-y-1 text-gray-300 mt-2">
+            <li><span className="font-semibold text-white">Próximo Paso - Pasarelas de Pago:</span> Integrar Mercado Pago para activar la compra real de suscripciones y monedas.</li>
             <li><span className="font-semibold text-white">Modelo de Licencias:</span> Ofreceremos a municipios, ONGs y bancos la posibilidad de usar Resi como su propio asistente comunitario.</li>
-            <li><span className="font-semibold text-white">Expansión de Módulos:</span> A futuro, planeamos sumar módulos de educación financiera avanzada, un mercado de productos sostenibles y la integración de energías renovables.</li>
         </ul>
     </div>
 </div>

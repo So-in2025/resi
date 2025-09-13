@@ -17,7 +17,7 @@ from dependencies import model_chat
 from routers import finance, cultivation, family, market_data, gamification, community, marketplace, subscription # IMPORTAMOS NUEVOS ROUTERS
 import routers.services as services
 
-app = FastAPI(title="Resi API", version="5.0.0") # Versión actualizada
+app = FastAPI(title="Resi API", version="6.0.0") # Versión actualizada
 
 # --- Variables Globales para los Clientes ---
 speech_client = None
