@@ -13,7 +13,7 @@ router = APIRouter(
 )
 
 @router.post("/items", response_model=MarketplaceItemResponse)
-def create_marketplace_item(item: MarketplaceItemCreate = Depends(), file: UploadFile = File(None), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+def create_marketplace_item(item: MarketplaceItemCreate, file: UploadFile = File(None), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     """
     Crea un nuevo item en el marketplace.
     Ahora maneja la subida de la imagen a una carpeta estática local.

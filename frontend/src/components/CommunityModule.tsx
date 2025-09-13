@@ -60,27 +60,25 @@ const TabButton: FC<{ isActive: boolean; onClick: () => void; icon: React.Elemen
 /**
  * Tarjeta para mostrar una publicación en el Muro de la Comunidad.
  */
-const PostCard: FC<{ post: CommunityPost; onFeature: (id: number) => void; onContact: (email: string) => void; onReport: (id: number) => void; currentUserEmail?: string | null; isPremium: boolean; }> = ({ post, onFeature, onContact, onReport, currentUserEmail, isPremium }) => (
+// --- Modificar el componente PostCard ---
+const PostCard: FC<{ post: CommunityPost; onFeature: (id: number) => void; onContact: (email: string) => void; onReport: (id: number) => void; onDelete: (id: number) => void; currentUserEmail?: string | null; isPremium: boolean; }> = ({ post, onFeature, onContact, onReport, onDelete, currentUserEmail, isPremium }) => (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className={`bg-gray-700 rounded-lg p-4 border-l-4 ${post.is_featured ? 'border-yellow-400' : 'border-gray-600'}`}>
-        <div className="flex justify-between items-start">
-            <div>
-                <h4 className="font-bold text-white text-lg">{post.title}</h4>
-                <p className="text-xs text-gray-400">por {post.user_email.split('@')[0]} - {new Date(post.created_at).toLocaleDateString('es-AR')}</p>
-            </div>
-            {post.is_featured && <div className="flex items-center gap-1 text-yellow-400 text-xs font-bold bg-gray-800 px-2 py-1 rounded-full"><FaStar /><span>DESTACADO</span></div>}
-        </div>
-        <p className="text-gray-300 mt-2 whitespace-pre-wrap">{post.content}</p>
+        {/* ... (código existente del PostCard) ... */}
         <div className="mt-4 flex justify-between items-center">
             <span className="text-xs font-semibold bg-green-800 text-green-300 px-2 py-1 rounded-full">{post.category}</span>
             <div className="flex items-center gap-2">
+                {/* --- LÓGICA PARA MOSTRAR EL BOTÓN DE BORRAR --- */}
+                {currentUserEmail === post.user_email && (
+                    <button onClick={() => onDelete(post.id)} className="text-red-500 hover:text-red-400 text-xs font-bold flex items-center gap-1 transition-colors">
+                        <FaTrashAlt /> Borrar
+                    </button>
+                )}
                 {currentUserEmail === post.user_email && !post.is_featured && <button onClick={() => onFeature(post.id)} className="text-yellow-400 hover:text-yellow-300 text-xs font-bold flex items-center gap-1 transition-colors"><FaStar /> Destacar</button>}
                 <button onClick={() => onContact(post.user_email)} className="text-blue-400 hover:text-blue-300 text-xs font-bold flex items-center gap-1 transition-colors"><FaCommentDots /> Contactar</button>
-                <button onClick={() => onReport(post.id)} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors"><FaExclamationTriangle /></button>
             </div>
         </div>
     </motion.div>
 );
-
 /**
  * Tarjeta para mostrar un Evento (Feria, Taller, Trueque).
  */
@@ -392,6 +390,21 @@ export default function CommunityModule() {
         );
     }
 
+    // --- AÑADE ESTA NUEVA FUNCIÓN DENTRO DEL COMPONENTE ---
+    const handleDeletePost = async (id: number) => {
+        if (window.confirm("¿Estás seguro de que quieres eliminar esta publicación? Esta acción no se puede deshacer.")) {
+            const toastId = toast.loading("Eliminando publicación...");
+            try {
+                await apiClient.delete(`/community/posts/${id}`, { headers: { 'Authorization': `Bearer ${session?.user?.email}` } });
+                toast.success("Publicación eliminada.", { id: toastId });
+                fetchData('posts'); // Refresca la lista de publicaciones
+            } catch (error: any) {
+                toast.error(error.response?.data?.detail || "No se pudo eliminar la publicación.", { id: toastId });
+            }
+        }
+    };
+
+    
     // --- RENDERIZADO DEL COMPONENTE ---
     return (
         <>
