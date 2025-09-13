@@ -71,3 +71,24 @@ def get_community_events(skip: int = 0, limit: int = 20, db: Session = Depends(g
     """Obtiene los próximos eventos comunitarios."""
     events = db.query(CommunityEvent).order_by(CommunityEvent.event_date.asc()).offset(skip).limit(limit).all()
     return events
+
+@router.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_community_post(post_id: int, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
+    """
+    Elimina una publicación de la comunidad.
+    Un usuario solo puede eliminar sus propias publicaciones.
+    """
+    post_to_delete = db.query(CommunityPost).filter(
+        CommunityPost.id == post_id,
+        CommunityPost.user_email == user.email
+    ).first()
+
+    if not post_to_delete:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Publicación no encontrada o no tienes permiso para eliminarla."
+        )
+
+    db.delete(post_to_delete)
+    db.commit()
+    return

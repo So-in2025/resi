@@ -368,18 +368,24 @@ export default function CommunityModule() {
         }
     };
     
-    const handleSubscribe = async () => {
-        const toastId = toast.loading("Procesando suscripción Premium...");
-        try {
-            await apiClient.post('/subscriptions/premium', {}, { headers: { 'Authorization': `Bearer ${session?.user?.email}` } });
-            toast.success("¡Bienvenido a Resi Premium!", { id: toastId });
-            setIsPremiumUser(true);
-            setIsPremiumModalVisible(false);
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || "No se pudo procesar la suscripción.", { id: toastId });
-        }
-    };
+const handleSubscribe = async () => {
+    // Prevent multiple subscription attempts
+    if (isPremiumUser) {
+        toast.success("¡Ya eres un miembro Premium!");
+        setIsPremiumModalVisible(false);
+        return;
+    }
 
+    const toastId = toast.loading("Procesando suscripción Premium...");
+    try {
+        await apiClient.post('/subscriptions/premium', {}, { headers: { 'Authorization': `Bearer ${session?.user?.email}` } });
+        toast.success("¡Bienvenido a Resi Premium!", { id: toastId });
+        setIsPremiumUser(true);
+        setIsPremiumModalVisible(false);
+    } catch (error: any) {
+        toast.error(error.response?.data?.detail || "No se pudo procesar la suscripción.", { id: toastId });
+    }
+};
     if (status === 'loading') {
         return <div className="flex justify-center items-center h-64"><FaSpinner className="animate-spin text-4xl text-green-400" /></div>;
     }

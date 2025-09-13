@@ -186,3 +186,4 @@ def onboarding_complete(onboarding_data: OnboardingData, db: Session = Depends(g
     db.commit()
     
     return {"status": "Información guardada con éxito"}
+
