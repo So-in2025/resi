@@ -14,6 +14,7 @@ import OnboardingFlow from "@/components/OnboardingFlow";
 import Header from "@/components/Header";
 import FinanceModule from '@/components/FinanceModule'; 
 import FamilyPlannerModule from "@/components/FamilyPlannerModule";
+import CommunityModule from "@/components/CommunityModule"; // Importamos el nuevo módulo
 import apiClient from "@/lib/apiClient";
 import dynamic from 'next/dynamic';
 import { ChatWindow, ChatMessage } from "@/components/ChatWindow";
@@ -33,7 +34,7 @@ const HeroSection = () => (
       Resi, tu asistente de <span className="text-green-400">resiliencia</span>.
     </h1>
     <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto">
-      Llegá a fin de mes, tomá el control de tu dinero, sembrá tu futuro y el de los tuyos.
+      Llegá a fin de mes, tomá el control de tu dinero, sembrá tu futuro y el de los tuyos. Compra, Vende, Intercambia, Promociona, Comparti.
     </p>
   </div>
 );
@@ -260,7 +261,7 @@ export default function HomePage() {
           onSidebarClick={handleSidebarClick}
         />
         <main className={`flex-1 flex flex-col items-center p-4 md:p-8 text-white font-sans md:ml-20 overflow-x-hidden transition-all duration-300 ${isHeaderVisible ? 'pt-4' : 'pt-20'}`}>
-          <HeroSection />
+        <HeroSection />
 
           <div className="flex flex-col sm:flex-row items-center gap-x-6 gap-y-3 mb-10 w-full max-w-4xl justify-center flex-wrap">
             <button
@@ -360,6 +361,17 @@ export default function HomePage() {
               onToggle={() => handleAccordionToggle('modulo-familia')}
             >
               <FamilyPlannerModule />
+            </Accordion>
+          </div>
+
+          <div id="modulo-comunidad" className="mt-12 w-full max-w-4xl scroll-mt-20">
+            <Accordion 
+              id="modulo-comunidad"
+              title="Módulo 4: Comunidad y Mercado Resiliente"
+              isOpen={openAccordionId === 'modulo-comunidad'}
+              onToggle={() => handleAccordionToggle('modulo-comunidad')}
+            >
+              <CommunityModule />
             </Accordion>
           </div>
 

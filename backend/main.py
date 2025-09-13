@@ -17,7 +17,7 @@ from dependencies import model_chat
 from routers import finance, cultivation, family, market_data, gamification, community # IMPORTAMOS EL NUEVO ROUTER
 import routers.services as services
 
-app = FastAPI(title="Resi API", version="4.5.0")
+app = FastAPI(title="Resi API", version="5.0.0") # Versión actualizada
 
 # --- Variables Globales para los Clientes ---
 speech_client = None
@@ -51,8 +51,9 @@ app.include_router(community.router) # AÑADIMOS EL NUEVO ROUTER AQUÍ
 
 @app.get("/")
 def read_root():
-    return {"status": "ok", "version": "4.0.0"}
+    return {"status": "ok", "version": "5.0.0"}
 
+# ... (el resto del archivo main.py permanece sin cambios, incluyendo transcribe_audio, process_text, ai_chat, etc.)
 @app.post("/transcribe")
 def transcribe_audio(audio_file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
     try:

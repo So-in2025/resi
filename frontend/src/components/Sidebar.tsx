@@ -3,7 +3,7 @@
 'use client';
 
 import Link from "next/link";
-import { FaHome, FaChartPie, FaLeaf, FaTimes, FaBars } from "react-icons/fa";
+import { FaHome, FaChartPie, FaLeaf, FaTimes, FaBars, FaUsers } from "react-icons/fa"; // Se añade FaUsers
 
 interface SidebarProps {
   isOpen: boolean;
@@ -17,6 +17,7 @@ const Sidebar = ({ isOpen, onClose, onOpen, onSidebarClick }: SidebarProps) => {
     { name: 'Inicio', href: '#', id: 'inicio', icon: FaHome },
     { name: 'Mis Finanzas', href: '#mis-finanzas', id: 'mis-finanzas', icon: FaChartPie },
     { name: 'Módulo Cultivo', href: '#modulo-cultivo', id: 'modulo-cultivo', icon: FaLeaf },
+    { name: 'Comunidad', href: '#modulo-comunidad', id: 'modulo-comunidad', icon: FaUsers }, // NUEVO ENLACE
   ];
 
   return (

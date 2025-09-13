@@ -26,7 +26,7 @@ class CommunityPost(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
-    category = Column(String, index=True)
+    category = Column(String, index=True) # Ej: "Cultivo", "Ahorro", "Recetas"
     created_at = Column(DateTime, default=datetime.utcnow)
     user_email = Column(String, ForeignKey("users.email"))
     owner = relationship("User", back_populates="community_posts")
@@ -38,7 +38,7 @@ class CommunityEvent(Base):
     name = Column(String, nullable=False)
     description = Column(Text)
     event_type = Column(String, index=True) # "Feria", "Trueque", "Taller"
-    location = Column(String)
+    location = Column(String) # Podría ser una dirección o coordenadas
     event_date = Column(DateTime, nullable=False)
     user_email = Column(String, ForeignKey("users.email"))
     organizer = relationship("User", back_populates="community_events")
