@@ -14,9 +14,11 @@ router = APIRouter(
 
 @router.post("/items", response_model=MarketplaceItemResponse)
 def create_marketplace_item(item: MarketplaceItemCreate, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
-    """Crea un nuevo item en el marketplace."""
-    # En una implementación real, aquí se manejaría la subida de la imagen a un bucket (S3, Cloud Storage)
-    # y se guardaría la URL en `item.image_url`.
+    """
+    Crea un nuevo item en el marketplace.
+    En una implementación real, aquí se manejaría la subida de la imagen a un bucket (S3, Cloud Storage)
+    y se guardaría la URL en `item.image_url`.
+    """
     new_item = MarketplaceItem(**item.dict(), user_email=user.email)
     db.add(new_item)
     db.commit()
@@ -31,19 +33,22 @@ def get_marketplace_items(skip: int = 0, limit: int = 20, db: Session = Depends(
 
 @router.post("/items/{item_id}/buy", response_model=TransactionResponse)
 def buy_item(item_id: int, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
-    """Inicia la compra de un item, retiene las monedas y crea una transacción."""
+    """
+    Inicia la compra de un item (escrow).
+    Verifica fondos, retiene las monedas, reserva el ítem y crea la transacción.
+    """
     item = db.query(MarketplaceItem).filter(MarketplaceItem.id == item_id).first()
     if not item or item.status != 'available':
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ítem no disponible o ya reservado.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ítem no disponible o ya fue reservado.")
 
     if item.user_email == user.email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No puedes comprar tu propio ítem.")
 
     buyer_profile = db.query(GameProfile).filter(GameProfile.user_email == user.email).first()
     if not buyer_profile or buyer_profile.resilient_coins < item.price:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes suficientes Monedas Resilientes.")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes suficientes Monedas Resilientes para esta compra.")
 
-    # Lógica de Escrow: Retener monedas y reservar item
+    # Lógica de Escrow
     buyer_profile.resilient_coins -= item.price
     item.status = 'reserved'
     
@@ -62,7 +67,10 @@ def buy_item(item_id: int, db: Session = Depends(get_db), user: User = Depends(g
 
 @router.post("/transactions/{transaction_id}/confirm", response_model=TransactionResponse)
 def confirm_transaction(transaction_id: int, db: Session = Depends(get_db), user: User = Depends(get_user_or_create)):
-    """Confirma una transacción, liberando las monedas al vendedor. Solo el vendedor puede confirmar."""
+    """
+    Confirma una transacción (Apretón de Manos Digital).
+    Libera las monedas al vendedor. Solo el vendedor puede ejecutar esta acción.
+    """
     transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
     
     if not transaction or transaction.seller_email != user.email or transaction.status != 'pending':
@@ -70,6 +78,7 @@ def confirm_transaction(transaction_id: int, db: Session = Depends(get_db), user
 
     seller_profile = db.query(GameProfile).filter(GameProfile.user_email == user.email).first()
     if not seller_profile:
+        # Esto no debería pasar si el usuario existe, pero es una buena práctica de validación
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil del vendedor no encontrado.")
 
     # Liberar fondos al vendedor

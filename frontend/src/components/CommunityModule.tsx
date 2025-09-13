@@ -1,30 +1,33 @@
 'use client';
 
-import { useState, useEffect, useCallback, ChangeEvent, FormEvent } from 'react';
+import { useState, useEffect, useCallback, ChangeEvent, FormEvent, FC } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import apiClient from '@/lib/apiClient';
 import toast from 'react-hot-toast';
 import { 
     FaBullhorn, FaPlus, FaStar, FaStore, FaUsers, FaMapMarkedAlt, 
     FaShoppingBasket, FaCommentDots, FaExclamationTriangle, FaQrcode, 
-    FaCoins, FaCamera, FaTimes, FaSpinner
+    FaCoins, FaCamera, FaTimes, FaSpinner, FaReceipt
 } from 'react-icons/fa';
 import Modal from './Modal';
 import { motion, AnimatePresence } from 'framer-motion';
+import QRCode from 'qrcode.react';
+import { QrReader } from 'react-qr-reader';
 
 // --- DEFINICIÓN DE TIPOS DE DATOS ---
 interface CommunityPost { id: number; title: string; content: string; category: string; user_email: string; created_at: string; is_featured: boolean; }
 interface CommunityEvent { id: number; name: string; description: string; event_type: string; location: string; event_date: string; }
-interface MarketplaceItem { id: number; name: string; description: string; price: number; image_url: string | null; is_service: boolean; user_email: string; }
-type ActiveTab = 'posts' | 'market' | 'events';
+interface MarketplaceItem { id: number; name: string; description: string; price: number; image_url: string | null; is_service: boolean; user_email: string; status: string; }
+interface Transaction { id: number; item_id: number; amount: number; status: string; buyer_email: string; seller_email: string; confirmation_code: string; timestamp: string; }
+type ActiveTab = 'posts' | 'market' | 'events' | 'transactions';
 
 
-// --- COMPONENTES VISUALES REUTILIZABLES (SUB-COMPONENTES) ---
+// --- SUB-COMPONENTES VISUALES REUTILIZABLES ---
 
 /**
  * Botón de Pestaña para la navegación principal del módulo.
  */
-const TabButton = ({ isActive, onClick, icon: Icon, label }: { isActive: boolean; onClick: () => void; icon: React.ElementType; label: string; }) => (
+const TabButton: FC<{ isActive: boolean; onClick: () => void; icon: React.ElementType; label: string; }> = ({ isActive, onClick, icon: Icon, label }) => (
     <button onClick={onClick} className={`flex-1 px-3 py-3 flex items-center justify-center gap-2 transition-colors duration-200 rounded-t-lg text-sm md:text-base ${ isActive ? 'bg-gray-700 text-green-400 border-b-2 border-green-400' : 'bg-gray-800 text-gray-400 hover:bg-gray-700/50'}`}>
         <Icon />
         <span className="font-semibold">{label}</span>
@@ -33,9 +36,8 @@ const TabButton = ({ isActive, onClick, icon: Icon, label }: { isActive: boolean
 
 /**
  * Tarjeta para mostrar una publicación en el Muro de la Comunidad.
- * Incluye lógica de acciones contextuales (destacar, contactar, reportar).
  */
-const PostCard = ({ post, onFeature, onContact, onReport, currentUserEmail, isPremium }: { post: CommunityPost, onFeature: (id: number) => void, onContact: (email: string) => void, onReport: (id: number) => void, currentUserEmail?: string | null, isPremium: boolean }) => (
+const PostCard: FC<{ post: CommunityPost; onFeature: (id: number) => void; onContact: (email: string) => void; onReport: (id: number) => void; currentUserEmail?: string | null; isPremium: boolean; }> = ({ post, onFeature, onContact, onReport, currentUserEmail, isPremium }) => (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className={`bg-gray-700 rounded-lg p-4 border-l-4 ${post.is_featured ? 'border-yellow-400' : 'border-gray-600'}`}>
         <div className="flex justify-between items-start">
             <div>
@@ -59,7 +61,7 @@ const PostCard = ({ post, onFeature, onContact, onReport, currentUserEmail, isPr
 /**
  * Tarjeta para mostrar un Evento (Feria, Taller, Trueque).
  */
-const EventCard = ({ event }: { event: CommunityEvent }) => (
+const EventCard: FC<{ event: CommunityEvent }> = ({ event }) => (
      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="bg-gray-700 rounded-lg p-4 border-l-4 border-blue-400">
         <h4 className="font-bold text-white text-lg">{event.name}</h4>
         <p className="text-sm text-gray-400">{new Date(event.event_date).toLocaleString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} hs</p>
@@ -74,7 +76,7 @@ const EventCard = ({ event }: { event: CommunityEvent }) => (
 /**
  * Tarjeta para mostrar un Producto o Servicio en el Mercado.
  */
-const MarketplaceItemCard = ({ item, onBuy }: { item: MarketplaceItem, onBuy: (item: MarketplaceItem) => void }) => (
+const MarketplaceItemCard: FC<{ item: MarketplaceItem; onBuy: (item: MarketplaceItem) => void; }> = ({ item, onBuy }) => (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="bg-gray-700 rounded-lg overflow-hidden flex flex-col">
         <img src={item.image_url || `https://placehold.co/600x400/1F2937/7C8A9E?text=${encodeURIComponent(item.name)}`} alt={item.name} className="w-full h-48 object-cover" />
         <div className="p-4 flex flex-col flex-grow">
@@ -97,7 +99,7 @@ const MarketplaceItemCard = ({ item, onBuy }: { item: MarketplaceItem, onBuy: (i
 /**
  * Modal para incentivar la suscripción a Premium.
  */
-const PremiumModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => (
+const PremiumModal: FC<{ isOpen: boolean; onClose: () => void; onSubscribe: () => void; }> = ({ isOpen, onClose, onSubscribe }) => (
     <Modal isOpen={isOpen} onClose={onClose} title="¡Desbloqueá tu Potencial con Resi Premium!">
         <div className="text-center text-gray-300 space-y-4">
             <FaStar className="text-yellow-400 text-5xl mx-auto" />
@@ -111,60 +113,95 @@ const PremiumModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => voi
                     <li>¡Y mucho más próximamente!</li>
                 </ul>
             </div>
-            <button className="w-full bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold py-3 rounded-lg transition-colors">
-                Quiero ser Premium (Próximamente)
+            <button onClick={onSubscribe} className="w-full bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold py-3 rounded-lg transition-colors">
+                Hacerme Premium (Simulación)
             </button>
         </div>
     </Modal>
 );
 
 /**
- * Modal para el flujo de transacción segura ("Apretón de Manos Digital").
+ * Modal para el flujo de transacción segura - Apretón de Manos Digital
  */
-const TransactionModal = ({ isOpen, onClose, item }: { isOpen: boolean, onClose: () => void, item: MarketplaceItem | null }) => (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Comprar: ${item?.name}`}>
-        {item && (
+const TransactionModal: FC<{ isOpen: boolean; onClose: () => void; transaction: Transaction | null; role: 'buyer' | 'seller'; onConfirm?: (txId: number) => void; }> = ({ isOpen, onClose, transaction, role, onConfirm }) => {
+    const [isScanning, setIsScanning] = useState(false);
+    
+    if (!transaction) return null;
+
+    const handleScan = (result: any, error: any) => {
+        if (!!result) {
+            setIsScanning(false);
+            const scannedCode = result?.text;
+            if (scannedCode === transaction.confirmation_code) {
+                toast.success("¡Código verificado! Confirmando entrega...");
+                onConfirm?.(transaction.id);
+            } else {
+                toast.error("Código QR no válido para esta transacción.");
+            }
+        }
+        if (!!error) {
+            // console.info(error); // Opcional: para debuggear errores de la cámara
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`Transacción #${transaction.id}`}>
             <div className="text-center text-gray-300 space-y-4">
-                <h3 className="text-2xl font-bold text-white">Confirmación de Compra</h3>
-                <p>Estás por comprar <span className="font-bold text-green-400">{item.name}</span> por <span className="font-bold text-yellow-400">{item.price} Monedas Resilientes</span>.</p>
-                <div className="bg-gray-900 p-4 rounded-lg">
-                    <h4 className="font-bold text-lg text-yellow-400 mb-2">¡Apretón de Manos Digital!</h4>
-                    <p className="text-sm">Tus monedas serán retenidas de forma segura. Cuando te encuentres con el vendedor y recibas el producto, mostrale este código QR para confirmar la entrega y liberar el pago.</p>
-                    <div className="mt-4 flex justify-center">
-                        {/* Placeholder para el QR real */}
-                        <div className="w-48 h-48 bg-white flex items-center justify-center rounded-lg">
-                             <FaQrcode className="text-8xl text-gray-800" />
+                {role === 'buyer' && (
+                    <>
+                        <h3 className="text-xl font-bold text-white">Mostrá este QR al vendedor</h3>
+                        <p>Para confirmar que recibiste el producto, el vendedor debe escanear este código.</p>
+                        <div className="bg-white p-4 rounded-lg inline-block">
+                            <QRCode value={transaction.confirmation_code} size={200} />
                         </div>
-                    </div>
-                </div>
-                 <div className="flex gap-4 mt-4">
-                    <button onClick={onClose} className="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 rounded-lg">Cancelar</button>
-                    <button onClick={() => {toast.success("¡Reserva confirmada! Contacta al vendedor."); onClose();}} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg">Confirmar y Reservar</button>
-                </div>
+                    </>
+                )}
+                {role === 'seller' && (
+                    <>
+                         <h3 className="text-xl font-bold text-white">Confirmar la Entrega</h3>
+                         <p>Para completar la venta y recibir tus monedas, escaneá el código QR que te mostrará el comprador.</p>
+                         {isScanning ? (
+                            <div>
+                                <QrReader
+                                    onResult={handleScan}
+                                    constraints={{ facingMode: 'environment' }}
+                                    containerStyle={{ width: '100%' }}
+                                />
+                                <button onClick={() => setIsScanning(false)} className="mt-4 bg-red-600 text-white font-bold py-2 px-4 rounded-lg w-full">Cancelar Escaneo</button>
+                            </div>
+                         ) : (
+                            <button onClick={() => setIsScanning(true)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">
+                                <FaQrcode /> Escanear Código QR
+                            </button>
+                         )}
+                    </>
+                )}
+                <button onClick={onClose} className="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 rounded-lg mt-2">Cerrar</button>
             </div>
-        )}
-    </Modal>
-);
+        </Modal>
+    );
+};
 
 
 // --- COMPONENTE PRINCIPAL DEL MÓDULO ---
 export default function CommunityModule() {
     const { data: session, status } = useSession();
-    // Asumimos que obtendremos si el usuario es premium desde el session o un endpoint
-    const isPremiumUser = true; // Placeholder - Cambiar a `session?.user?.is_premium` cuando esté disponible
+    const [isPremiumUser, setIsPremiumUser] = useState(false); // Estado real de la suscripción
 
     const [activeTab, setActiveTab] = useState<ActiveTab>('posts');
     const [isLoading, setIsLoading] = useState(true);
     
-    // Estados para los datos de cada pestaña
+    // Estados para los datos
     const [posts, setPosts] = useState<CommunityPost[]>([]);
     const [events, setEvents] = useState<CommunityEvent[]>([]);
-    const [marketplaceItems, setMarketplaceItems] = useState<MarketplaceItem[]>([]); // Placeholder
+    const [marketplaceItems, setMarketplaceItems] = useState<MarketplaceItem[]>([]);
+    const [myTransactions, setMyTransactions] = useState<Transaction[]>([]);
     
     // Estados para los modales
     const [isPremiumModalVisible, setIsPremiumModalVisible] = useState(false);
     const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
-    const [selectedMarketItem, setSelectedMarketItem] = useState<MarketplaceItem | null>(null);
+    const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+    const [transactionRole, setTransactionRole] = useState<'buyer' | 'seller'>('buyer');
 
     // Estados para los formularios
     const [newPost, setNewPost] = useState({ title: '', content: '', category: 'General' });
@@ -173,28 +210,19 @@ export default function CommunityModule() {
     const [itemImage, setItemImage] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-    // --- Lógica de Carga de Datos ---
+    // --- LÓGICA DE CARGA Y GESTIÓN DE DATOS ---
     const fetchData = useCallback(async (tab: ActiveTab) => {
-        if (status !== 'authenticated') { setIsLoading(false); return; }
+        if (status !== 'authenticated' || !session?.user?.email) { setIsLoading(false); return; }
         setIsLoading(true);
         try {
-            const config = { headers: { 'Authorization': `Bearer ${session?.user?.email}` } };
-            let response;
-            if (tab === 'posts') {
-                response = await apiClient.get('/community/posts', config);
-                setPosts(response.data);
-            } else if (tab === 'events') {
-                response = await apiClient.get('/community/events', config);
-                setEvents(response.data);
-            }
-            // Lógica para cargar items del mercado
-            if (tab === 'market') {
-                // Placeholder: Reemplazar con la llamada a la API real cuando exista
-                setMarketplaceItems([
-                    {id: 1, name: "Miel Pura de Lavanda", description: "Frasco de 500gr de miel de lavanda de mi propia cosecha en Maipú.", price: 150, image_url: "https://images.unsplash.com/photo-1578916399995-ef0f7a3e8b49?q=80&w=2070&auto=format&fit=crop", is_service: false, user_email: "productor@resi.com"},
-                    {id: 2, name: "Clase de Kokedama", description: "Te enseño a armar tu propia kokedama. Incluye materiales. Duración: 2 horas.", price: 300, image_url: "https://images.unsplash.com/photo-1614594632596-16382531e842?q=80&w=1974&auto=format&fit=crop", is_service: true, user_email: "artesana@resi.com"},
-                ]);
-            }
+            const config = { headers: { 'Authorization': `Bearer ${session.user.email}` } };
+            const actions = {
+                posts: () => apiClient.get('/community/posts', config).then(res => setPosts(res.data)),
+                events: () => apiClient.get('/community/events', config).then(res => setEvents(res.data)),
+                market: () => apiClient.get('/market/items', config).then(res => setMarketplaceItems(res.data)),
+                transactions: () => apiClient.get('/market/my-transactions', config).then(res => setMyTransactions(res.data)),
+            };
+            await actions[tab]();
         } catch (error) {
             console.error(`Error al cargar datos de ${tab}:`, error);
             toast.error(`No se pudieron cargar los datos de ${tab}.`);
@@ -206,8 +234,8 @@ export default function CommunityModule() {
     useEffect(() => {
         fetchData(activeTab);
     }, [activeTab, fetchData]);
-    
-    // --- Handlers de Acciones ---
+
+    // --- MANEJADORES DE ACCIONES ---
     const handleCreatePost = async (e: FormEvent) => {
         e.preventDefault();
         if (!newPost.title || !newPost.content) { toast.error("El título y el contenido son obligatorios."); return; }
@@ -240,18 +268,28 @@ export default function CommunityModule() {
             toast.error(error.response?.data?.detail || "No se pudo crear el evento.", { id: toastId });
         }
     };
-
+    
     const handleCreateMarketItem = async (e: FormEvent) => {
         e.preventDefault();
-        toast.success("¡Producto publicado en el mercado! (Simulación)");
-        // Aquí iría la lógica de subida de imagen y luego el post a la API
-    };
-
-    const handleFeaturePost = async (id: number) => {
-        if (!isPremiumUser) {
-            setIsPremiumModalVisible(true);
-            return;
+        if (!newItem.name || !newItem.price) { toast.error("Nombre y precio son obligatorios."); return; }
+        const toastId = toast.loading("Publicando producto...");
+        try {
+            // Lógica de subida de imagen iría aquí
+            // const imageUrl = await uploadImage(itemImage); 
+            const itemData = { ...newItem, price: parseFloat(newItem.price) };
+            await apiClient.post('/market/items', itemData, { headers: { 'Authorization': `Bearer ${session?.user?.email}` } });
+            toast.success("Producto publicado.", { id: toastId });
+            setNewItem({ name: '', description: '', price: '', is_service: false });
+            setImagePreview(null);
+            setItemImage(null);
+            fetchData('market');
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || "No se pudo publicar el producto.", { id: toastId });
         }
+    };
+    
+    const handleFeaturePost = async (id: number) => {
+        if (!isPremiumUser) { setIsPremiumModalVisible(true); return; }
         const toastId = toast.loading("Destacando publicación...");
         try {
             await apiClient.post(`/community/posts/${id}/feature`, {}, { headers: { 'Authorization': `Bearer ${session?.user?.email}` } });
@@ -270,11 +308,45 @@ export default function CommunityModule() {
         }
     };
 
-    const handleBuyItem = (item: MarketplaceItem) => {
-        setSelectedMarketItem(item);
-        setIsTransactionModalVisible(true);
+    const handleBuyItem = async (item: MarketplaceItem) => {
+        const toastId = toast.loading("Iniciando compra...");
+        try {
+            const response = await apiClient.post(`/market/items/${item.id}/buy`, {}, { headers: { 'Authorization': `Bearer ${session?.user?.email}` } });
+            toast.success("¡Reserva confirmada! Gestioná la entrega en 'Mis Transacciones'.", { id: toastId, duration: 5000 });
+            setSelectedTransaction(response.data);
+            setTransactionRole('buyer');
+            setIsTransactionModalVisible(true);
+            fetchData('market'); // Para actualizar el estado del item
+            fetchData('transactions');
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || "No se pudo realizar la compra.", { id: toastId });
+        }
+    };
+
+    const handleConfirmTransaction = async (txId: number) => {
+        const toastId = toast.loading("Confirmando transacción...");
+        try {
+            await apiClient.post(`/market/transactions/${txId}/confirm`, {}, { headers: { 'Authorization': `Bearer ${session?.user?.email}` } });
+            toast.success("¡Transacción completada! Las monedas han sido transferidas.", { id: toastId });
+            setIsTransactionModalVisible(false);
+            fetchData('transactions');
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || "No se pudo confirmar.", { id: toastId });
+        }
     };
     
+    const handleSubscribe = async () => {
+        const toastId = toast.loading("Procesando suscripción Premium...");
+        try {
+            await apiClient.post('/subscriptions/premium', {}, { headers: { 'Authorization': `Bearer ${session?.user?.email}` } });
+            toast.success("¡Bienvenido a Resi Premium!", { id: toastId });
+            setIsPremiumUser(true);
+            setIsPremiumModalVisible(false);
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || "No se pudo procesar la suscripción.", { id: toastId });
+        }
+    };
+
     if (status === 'loading') {
         return <div className="flex justify-center items-center h-64"><FaSpinner className="animate-spin text-4xl text-green-400" /></div>;
     }
@@ -288,14 +360,15 @@ export default function CommunityModule() {
     // --- RENDERIZADO DEL COMPONENTE ---
     return (
         <>
-            <PremiumModal isOpen={isPremiumModalVisible} onClose={() => setIsPremiumModalVisible(false)} />
-            <TransactionModal isOpen={isTransactionModalVisible} onClose={() => setIsTransactionModalVisible(false)} item={selectedMarketItem} />
+            <PremiumModal isOpen={isPremiumModalVisible} onClose={() => setIsPremiumModalVisible(false)} onSubscribe={handleSubscribe} />
+            <TransactionModal isOpen={isTransactionModalVisible} onClose={() => setIsTransactionModalVisible(false)} transaction={selectedTransaction} role={transactionRole} onConfirm={handleConfirmTransaction} />
 
             <div className="space-y-6">
                 <div className="flex border-b border-gray-700">
                     <TabButton isActive={activeTab === 'posts'} onClick={() => setActiveTab('posts')} icon={FaBullhorn} label="Publicaciones" />
                     <TabButton isActive={activeTab === 'market'} onClick={() => setActiveTab('market')} icon={FaShoppingBasket} label="Mercado" />
                     <TabButton isActive={activeTab === 'events'} onClick={() => setActiveTab('events')} icon={FaStore} label="Ferias" />
+                    <TabButton isActive={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={FaReceipt} label="Mis Transacciones" />
                 </div>
 
                 <AnimatePresence mode="wait">
@@ -313,7 +386,7 @@ export default function CommunityModule() {
                                         <button type="submit" className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md flex items-center justify-center gap-2"><FaPlus /> Publicar</button>
                                     </div>
                                 </form>
-                                <div className="space-y-4">{posts.length > 0 ? posts.map(post => <PostCard key={post.id} post={post} onFeature={handleFeaturePost} onContact={(email) => toast(`Contactando a ${email}`)} onReport={(id) => toast.error(`Reportando post ${id}`)} currentUserEmail={session?.user?.email} isPremium={isPremiumUser} />) : <p className="text-center text-gray-400 py-8">Todavía no hay publicaciones. ¡Sé el primero!</p>}</div>
+                                <div className="space-y-4">{posts.length > 0 ? posts.map(post => <PostCard key={post.id} post={post} onFeature={handleFeaturePost} onContact={(email) => toast(`Simulando chat con ${email}`)} onReport={(id) => toast.error(`Reportando post #${id}`)} currentUserEmail={session?.user?.email} isPremium={isPremiumUser} />) : <p className="text-center text-gray-400 py-8">Todavía no hay publicaciones. ¡Sé el primero!</p>}</div>
                             </div>
                         )}
                         
@@ -358,6 +431,33 @@ export default function CommunityModule() {
                                 </form>
                                 <div className="space-y-4">{events.length > 0 ? events.map(event => <EventCard key={event.id} event={event} />) : <p className="text-center text-gray-400 py-8">Aún no hay eventos registrados.</p>}</div>
                              </div>
+                        )}
+                        
+                        {!isLoading && activeTab === 'transactions' && (
+                            <div className="space-y-6">
+                                <div>
+                                    <h3 className="text-xl font-bold text-white mb-4">Mis Compras</h3>
+                                    <div className="space-y-2">
+                                        {myTransactions.filter(t => t.buyer_email === session?.user?.email).map(tx => (
+                                            <div key={tx.id} className="bg-gray-700 p-3 rounded-md flex justify-between items-center">
+                                                <p>Compra de item #{tx.item_id} - <span className="font-bold capitalize">{tx.status}</span></p>
+                                                {tx.status === 'pending' && <button onClick={() => { setSelectedTransaction(tx); setTransactionRole('buyer'); setIsTransactionModalVisible(true); }} className="bg-blue-500 text-white text-xs font-bold py-1 px-2 rounded">Ver QR</button>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-white mb-4">Mis Ventas</h3>
+                                    <div className="space-y-2">
+                                        {myTransactions.filter(t => t.seller_email === session?.user?.email).map(tx => (
+                                            <div key={tx.id} className="bg-gray-700 p-3 rounded-md flex justify-between items-center">
+                                                <p>Venta de item #{tx.item_id} - <span className="font-bold capitalize">{tx.status}</span></p>
+                                                {tx.status === 'pending' && <button onClick={() => { setSelectedTransaction(tx); setTransactionRole('seller'); setIsTransactionModalVisible(true); }} className="bg-green-500 text-white text-xs font-bold py-1 px-2 rounded">Confirmar Entrega</button>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
                         )}
                     </motion.div>
                 </AnimatePresence>

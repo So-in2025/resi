@@ -185,5 +185,19 @@ class MarketplaceItemCreate(MarketplaceItemBase):
 class MarketplaceItemResponse(MarketplaceItemBase):
     id: int
     user_email: str
+    status: str
+    class Config:
+        from_attributes = True
+
+# --- CORRECCIÓN CRÍTICA: SCHEMA FALTANTE AÑADIDO ---
+class TransactionResponse(BaseModel):
+    id: int
+    item_id: int
+    seller_email: str
+    buyer_email: str
+    amount: float
+    status: str
+    confirmation_code: str
+    timestamp: datetime
     class Config:
         from_attributes = True

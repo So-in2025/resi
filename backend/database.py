@@ -96,7 +96,6 @@ class User(Base):
     marketplace_items = relationship("MarketplaceItem", back_populates="seller")
     subscription = relationship("Subscription", back_populates="owner", uselist=False)
 
-# ... (Resto de las clases originales sin cambios: Expense, BudgetItem, etc.) ...
 class Expense(Base):
     __tablename__ = "expenses"
     id = Column(Integer, primary_key=True, index=True)
@@ -202,3 +201,4 @@ class CultivationTask(Base):
 
 def create_db_and_tables():
     Base.metadata.create_all(bind=engine)
+
