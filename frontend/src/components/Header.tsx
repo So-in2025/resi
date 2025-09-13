@@ -20,7 +20,7 @@ interface HeaderProps {
 }
 
 const HeaderSkeleton = () => (
-    <header className="bg-gray-800 text-white p-4 flex flex-col md:flex-row md:justify-between md:items-center shadow-lg sticky top-0 z-50 animate-pulse">
+    <header className="bg-gray-800 text-white p-4 flex flex-col md:flex-row md:justify-between md:items-center shadow-lg animate-pulse">
         <div className="flex justify-between items-center w-full md:w-auto mb-4 md:mb-0">
             <div className="text-2xl font-bold bg-gray-700 h-8 w-20 rounded"></div>
         </div>
@@ -83,7 +83,7 @@ export default function Header({ refreshTrigger }: HeaderProps) {
         : 0;
     
     return (
-        <header className="bg-gray-800 text-white p-4 flex flex-col md:flex-row md:justify-between md:items-center shadow-lg sticky top-0 z-50">
+        <header className="bg-gray-800 text-white p-4 flex flex-col md:flex-row md:justify-between md:items-center shadow-lg">
             <div className="flex justify-between items-center w-full md:w-auto mb-4 md:mb-0">
                 <Link href="/" className="text-2xl font-bold text-green-400">
                     Resi
@@ -115,7 +115,6 @@ export default function Header({ refreshTrigger }: HeaderProps) {
                         </div>
                     </div>
 
-                    {/* NUEVO: Información de gamificación en el header */}
                     {gameProfile && (
                         <div className="flex items-center space-x-4 mb-4 md:mb-0">
                             <div className="flex items-center">

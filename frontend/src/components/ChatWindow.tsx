@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FaPaperPlane, FaTimes, FaVolumeUp } from 'react-icons/fa';
 import { useResiVoice } from '@/hooks/useResiVoice';
+import toast from 'react-hot-toast';
 
 // Definimos los tipos para los mensajes y las props
 export interface ChatMessage {
@@ -23,28 +24,70 @@ export const ChatWindow = ({ isOpen, onClose, messages, onSendMessage }: ChatWin
   const [inputText, setInputText] = useState('');
   const { transcript, listening, startListening, stopListening, browserSupportsSpeechRecognition } = useResiVoice();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatWindowRef = useRef<HTMLDivElement>(null);
+  const [voicesLoaded, setVoicesLoaded] = useState(false);
 
-  // --- NUEVA LÓGICA DE VOZ PARA NARRACIÓN ---
+  // --- LÓGICA: Cerrar al hacer clic fuera ---
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (isOpen && chatWindowRef.current && !chatWindowRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isOpen, onClose]);
+
+  // --- LÓGICA DE VOZ PARA NARRACIÓN REFINADA ---
   const speak = useCallback((text: string) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    if (typeof window === 'undefined' || !window.speechSynthesis || !voicesLoaded) {
+      toast.error("La síntesis de voz no está disponible o las voces aún no se han cargado.");
+      return;
+    }
 
-    // Cancela cualquier narración anterior para empezar la nueva
     window.speechSynthesis.cancel();
-
     const utterance = new SpeechSynthesisUtterance(text);
     const voices = window.speechSynthesis.getVoices();
+
+    // Lógica mejorada para seleccionar la segunda voz femenina de Google en español si existe
+    const googleSpanishFemaleVoices = voices.filter(v => v.lang.startsWith('es') && v.name.includes('Google') && (v.name.includes('Female') || v.name.includes('Femenino') || v.name.includes('mujer')));
+    const preferredVoice = googleSpanishFemaleVoices.length > 1 ? googleSpanishFemaleVoices[1] : googleSpanishFemaleVoices[0];
+    
+    // Fallback a cualquier voz femenina en español si la preferida no existe
+    const nativeFemaleVoice = voices.find(v => v.lang.startsWith('es') && (v.name.includes('Female') || v.name.includes('Femenino') || v.name.includes('mujer')));
+    // Fallback a cualquier voz en español de Google
     const googleSpanishVoice = voices.find(v => v.lang.startsWith('es') && v.name.includes('Google'));
+    // Último fallback a la primera voz en español disponible
     const nativeSpanishVoice = voices.find(v => v.lang.startsWith('es'));
 
-    utterance.voice = googleSpanishVoice || nativeSpanishVoice || voices[0];
+
+    utterance.voice = preferredVoice || nativeFemaleVoice || googleSpanishVoice || nativeSpanishVoice || voices[0];
     utterance.lang = utterance.voice?.lang || 'es-AR';
     utterance.rate = 1.05;
     utterance.pitch = 1.1;
 
     window.speechSynthesis.speak(utterance);
-  }, []);
-  // --- FIN DE LA LÓGICA DE VOZ ---
+  }, [voicesLoaded]);
 
+  // Efecto para esperar a que las voces del navegador se carguen
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+        const handleVoicesLoaded = () => setVoicesLoaded(true);
+        window.speechSynthesis.addEventListener('voiceschanged', handleVoicesLoaded);
+        
+        // Para navegadores donde el evento onvoiceschanged no se dispara al inicio
+        if (window.speechSynthesis.getVoices().length > 0) {
+            setVoicesLoaded(true);
+        }
+
+        return () => window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesLoaded);
+    }
+  }, []);
+
+  // --- EFECTOS Y MANEJADORES ---
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -76,7 +119,11 @@ export const ChatWindow = ({ isOpen, onClose, messages, onSendMessage }: ChatWin
   }
 
   return (
-    <div className="fixed bottom-24 right-4 w-11/12 max-w-md h-3/4 max-h-[600px] bg-gray-800 rounded-lg shadow-2xl flex flex-col z-50 border border-gray-600">
+    <div 
+      ref={chatWindowRef} 
+      className="fixed bottom-24 right-4 w-11/12 max-w-md h-3/4 max-h-[600px] bg-gray-800 rounded-lg shadow-2xl flex flex-col z-50 border border-gray-600"
+      onClick={(e) => e.stopPropagation()} 
+    >
       <div className="flex justify-between items-center p-4 bg-gray-900 rounded-t-lg">
         <h3 className="text-lg font-bold text-green-400">Chateá con Resi</h3>
         <button onClick={onClose} className="text-gray-400 hover:text-white">
@@ -92,14 +139,12 @@ export const ChatWindow = ({ isOpen, onClose, messages, onSendMessage }: ChatWin
                 msg.sender === 'user' 
                   ? 'bg-blue-600 text-white' 
                   : msg.isInfo
-                    ? 'bg-gray-600 text-gray-300 italic' // Estilo para mensaje informativo
-                    : 'bg-gray-700 text-gray-200 cursor-pointer hover:bg-gray-600' // Estilo para mensaje de la IA
+                    ? 'bg-gray-600 text-gray-300 italic'
+                    : 'bg-gray-700 text-gray-200 cursor-pointer hover:bg-gray-600'
               }`}
-              // Añadimos el onClick solo a los mensajes de la IA que no son informativos
               onClick={msg.sender === 'ai' && !msg.isInfo ? () => speak(msg.text) : undefined}
             >
               <span>{msg.text}</span>
-              {/* Añadimos el ícono solo a los mensajes de la IA que se pueden narrar */}
               {msg.sender === 'ai' && !msg.isInfo && <FaVolumeUp className="text-gray-400 flex-shrink-0" />}
             </div>
           </div>

@@ -20,15 +20,69 @@ SessionLocal = sessionmaker(
 )
 Base = declarative_base()
 
+# --- TABLAS PARA COMUNIDAD Y MERCADO ---
+class CommunityPost(Base):
+    __tablename__ = "community_posts"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    category = Column(String, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user_email = Column(String, ForeignKey("users.email"))
+    owner = relationship("User", back_populates="community_posts")
+    is_featured = Column(Boolean, default=False) # Para destacar publicaciones Premium
+
+class CommunityEvent(Base):
+    __tablename__ = "community_events"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    event_type = Column(String, index=True) # "Feria", "Trueque", "Taller"
+    location = Column(String)
+    event_date = Column(DateTime, nullable=False)
+    user_email = Column(String, ForeignKey("users.email"))
+    organizer = relationship("User", back_populates="community_events")
+
+class MarketplaceItem(Base):
+    __tablename__ = "marketplace_items"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    price = Column(Float, nullable=False) # Precio en Monedas Resilientes
+    image_url = Column(String, nullable=True)
+    is_service = Column(Boolean, default=False)
+    user_email = Column(String, ForeignKey("users.email"))
+    seller = relationship("User", back_populates="marketplace_items")
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("marketplace_items.id"))
+    seller_email = Column(String, ForeignKey("users.email"))
+    buyer_email = Column(String, ForeignKey("users.email"))
+    amount = Column(Float, nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+# --- TABLA PARA MANEJAR SUSCRIPCIONES ---
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, ForeignKey("users.email"), unique=True)
+    plan_name = Column(String, default="Gratuito") # "Gratuito", "Premium"
+    start_date = Column(DateTime, default=datetime.utcnow)
+    end_date = Column(DateTime, nullable=True)
+    payment_id = Column(String, nullable=True) # Para IDs de Mercado Pago, etc.
+    owner = relationship("User", back_populates="subscription")
+
+
 class User(Base):
     __tablename__ = "users"
     email = Column(String, primary_key=True, index=True)
     has_completed_onboarding = Column(Boolean, default=False)
-    is_premium = Column(Boolean, default=False)
+    is_premium = Column(Boolean, default=False) # Controla el acceso a funciones pagas
     risk_profile = Column(String, nullable=True)
     long_term_goals = Column(Text, nullable=True)
     
-    # NUEVOS CAMPOS: Para historial de IA
     last_family_plan = Column(Text, nullable=True)
     last_cultivation_plan = Column(Text, nullable=True)
     
@@ -39,13 +93,18 @@ class User(Base):
     family_plans = relationship("FamilyPlan", back_populates="owner")
     cultivation_plans = relationship("CultivationPlan", back_populates="owner")
     
-    # NUEVAS RELACIONES para el Módulo 5
     game_profile = relationship("GameProfile", back_populates="owner", uselist=False)
     user_achievements = relationship("UserAchievement", back_populates="owner")
     
-    # NUEVAS RELACIONES para el Módulo 2 extendido
     harvest_logs = relationship("HarvestLog", back_populates="owner")
     cultivation_tasks = relationship("CultivationTask", back_populates="owner")
+
+    # NUEVAS RELACIONES
+    community_posts = relationship("CommunityPost", back_populates="owner")
+    community_events = relationship("CommunityEvent", back_populates="organizer")
+    marketplace_items = relationship("MarketplaceItem", back_populates="seller")
+    subscription = relationship("Subscription", back_populates="owner", uselist=False)
+
 
 class Expense(Base):
     __tablename__ = "expenses"

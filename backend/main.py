@@ -14,13 +14,12 @@ from database import create_db_and_tables, User, Expense, ChatMessage, BudgetIte
 from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse, CultivationPlanResponse, CultivationPlanResult, HarvestLogInput, HarvestLogResponse, CultivationTaskInput, CultivationTaskResponse, FamilyPlanRequest, FamilyPlanResponse
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement, generate_plan_with_gemini, validate_parameters_with_gemini, generate_family_plan_with_gemini
 from dependencies import model_chat
-from routers import finance, cultivation, family, market_data, gamification
-import routers.services as services # Importamos el nuevo módulo de servicios
+from routers import finance, cultivation, family, market_data, gamification, community # IMPORTAMOS EL NUEVO ROUTER
+import routers.services as services
 
 app = FastAPI(title="Resi API", version="4.5.0")
 
 # --- Variables Globales para los Clientes ---
-# El cliente de Google Speech es el único que se inicializa aquí.
 speech_client = None
 
 @app.on_event("startup")
@@ -48,6 +47,7 @@ app.include_router(cultivation.router)
 app.include_router(family.router)
 app.include_router(market_data.router)
 app.include_router(gamification.router)
+app.include_router(community.router) # AÑADIMOS EL NUEVO ROUTER AQUÍ
 
 @app.get("/")
 def read_root():

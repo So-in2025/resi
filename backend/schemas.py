@@ -29,7 +29,7 @@ class ResilienceSummary(BaseModel):
     class Config:
         from_attributes = True
 
-# --- Schemas para Planificador Familiar AMPLIADO ---
+# --- Schemas para Planificador Familiar ---
 class FamilyMember(BaseModel): age: str; role: str
 class FamilyPlanRequest(BaseModel):
     familyMembers: List[FamilyMember]
@@ -67,8 +67,7 @@ class ChatMessageResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# --- NUEVOS SCHEMAS DE RESPUESTA, ajustados para la base de datos real ---
-
+# --- Schemas de Gamificación ---
 class AchievementSchema(BaseModel):
     id: str
     name: str
@@ -97,7 +96,7 @@ class GameProfileResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# NUEVOS ESQUEMAS PARA CULTIVO
+# --- Schemas de Cultivo ---
 class CultivationPlanResult(BaseModel):
     crop: str
     system: str
@@ -112,7 +111,6 @@ class CultivationPlanResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# --- NUEVOS SCHEMAS PARA EL MÓDULO DE CULTIVO EXTENDIDO ---
 class HarvestLogInput(BaseModel):
     crop_name: str
     quantity: float
@@ -138,5 +136,54 @@ class CultivationTaskResponse(BaseModel):
     crop_name: Optional[str] = None
     due_date: datetime
     is_completed: bool
+    class Config:
+        from_attributes = True
+
+# --- NUEVOS SCHEMAS PARA COMUNIDAD Y MERCADO ---
+class CommunityPostBase(BaseModel):
+    title: str
+    content: str
+    category: str
+
+class CommunityPostCreate(CommunityPostBase):
+    pass
+
+class CommunityPostResponse(CommunityPostBase):
+    id: int
+    user_email: str
+    created_at: datetime
+    is_featured: bool
+    class Config:
+        from_attributes = True
+
+class CommunityEventBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    event_type: str
+    location: str
+    event_date: datetime
+
+class CommunityEventCreate(CommunityEventBase):
+    pass
+
+class CommunityEventResponse(CommunityEventBase):
+    id: int
+    user_email: str
+    class Config:
+        from_attributes = True
+
+class MarketplaceItemBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    price: float
+    image_url: Optional[str] = None
+    is_service: bool = False
+
+class MarketplaceItemCreate(MarketplaceItemBase):
+    pass
+
+class MarketplaceItemResponse(MarketplaceItemBase):
+    id: int
+    user_email: str
     class Config:
         from_attributes = True

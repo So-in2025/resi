@@ -19,7 +19,8 @@ import dynamic from 'next/dynamic';
 import { ChatWindow, ChatMessage } from "@/components/ChatWindow";
 import { FaComments, FaClipboardList } from "react-icons/fa";
 import toast from 'react-hot-toast';
-import GamificationModule from "@/components/GamificationModule";
+import HeaderToggleButton from '@/components/HeaderToggleButton';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const VoiceChatDinamic = dynamic(() => import('@/components/VoiceChat'), {
   ssr: false, 
@@ -115,7 +116,6 @@ export default function HomePage() {
   const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false);
   const [initialExpenseText, setInitialExpenseText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  // CORRECCIÓN: El acordeón inicialmente abierto es nulo.
   const [openAccordionId, setOpenAccordionId] = useState<string | null>(null);
   const [selectedGardeningMethod, setSelectedGardeningMethod] = useState('hydroponics');
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
@@ -124,6 +124,7 @@ export default function HomePage() {
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isHeaderVisible, setIsHeaderVisible] = useState(false);
 
   useEffect(() => {
     const checkOnboardingStatus = async () => {
@@ -134,7 +135,6 @@ export default function HomePage() {
           });
           const completed = response.data.onboarding_completed;
           setHasCompletedOnboarding(completed);
-          // CORRECCIÓN: Solo si no se ha completado el onboarding, se abre el acordeón de primeros pasos.
           if (!completed) {
             setOpenAccordionId('primeros-pasos');
           } else {
@@ -227,7 +227,6 @@ export default function HomePage() {
   
   const handleOnboardingComplete = () => {
     setHasCompletedOnboarding(true);
-    // CORRECCIÓN: Se cierra el acordeón de primeros pasos al completar el onboarding
     setOpenAccordionId(null);
   };
 
@@ -239,7 +238,20 @@ export default function HomePage() {
   
   return (
     <>
-      <Header refreshTrigger={dataRefreshKey} />
+      <HeaderToggleButton isVisible={isHeaderVisible} onToggle={() => setIsHeaderVisible(!isHeaderVisible)} />
+      <AnimatePresence>
+        {isHeaderVisible && (
+          <motion.div
+            initial={{ y: '-100%', opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: '-100%', opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="sticky top-0 z-50"
+          >
+            <Header refreshTrigger={dataRefreshKey} />
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="flex bg-gray-900">
         <Sidebar 
           isOpen={isSidebarOpen} 
@@ -247,8 +259,8 @@ export default function HomePage() {
           onClose={() => setIsSidebarOpen(false)}
           onSidebarClick={handleSidebarClick}
         />
-        <main className="flex-1 flex flex-col items-center p-4 md:p-8 text-white font-sans md:ml-20 pt-20 overflow-x-hidden">
-        <HeroSection />
+        <main className={`flex-1 flex flex-col items-center p-4 md:p-8 text-white font-sans md:ml-20 overflow-x-hidden transition-all duration-300 ${isHeaderVisible ? 'pt-4' : 'pt-20'}`}>
+          <HeroSection />
 
           <div className="flex flex-col sm:flex-row items-center gap-x-6 gap-y-3 mb-10 w-full max-w-4xl justify-center flex-wrap">
             <button
@@ -349,17 +361,6 @@ export default function HomePage() {
             >
               <FamilyPlannerModule />
             </Accordion>
-          </div>
-
-          <div id="modulo-gamificacion" className="mt-12 w-full max-w-4xl scroll-mt-20">
-              <Accordion 
-                  id="modulo-gamificacion"
-                  title="Módulo 4: Gamificación"
-                  isOpen={openAccordionId === 'modulo-gamificacion'}
-                  onToggle={() => handleAccordionToggle('modulo-gamificacion')}
-              >
-                  <GamificationModule />
-              </Accordion>
           </div>
 
           <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-4">

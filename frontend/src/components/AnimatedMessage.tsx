@@ -16,20 +16,30 @@ export default function AnimatedMessage({ messages, finalMessage }: AnimatedMess
   const [showFinalMessage, setShowFinalMessage] = useState(false);
 
   useEffect(() => {
-    if (showFinalMessage) return;
+    // Si el mensaje final se está mostrando, esperamos un momento y reiniciamos el ciclo
+    if (showFinalMessage) {
+      const finalMessageTimer = setTimeout(() => {
+        setShowFinalMessage(false);
+        setIndex(0); // Volvemos al primer mensaje
+      }, 4000); // Duración del mensaje final en pantalla
+      return () => clearTimeout(finalMessageTimer);
+    }
 
+    // Ciclo principal de mensajes
     const timer = setTimeout(() => {
-      if (index >= messages.length - 1) { 
-        setShowFinalMessage(true); 
+      const nextIndex = index + 1;
+      if (nextIndex >= messages.length) {
+        setShowFinalMessage(true); // Mostramos el mensaje final
+      } else {
+        setIndex(nextIndex); // Pasamos al siguiente mensaje
       }
-      setIndex((prevIndex) => prevIndex + 1); 
-    }, 6000);
+    }, 5000); // Duración de cada mensaje intermedio
 
     return () => clearTimeout(timer);
   }, [index, messages.length, showFinalMessage]);
 
   const renderMessageContent = (msgIndex: number) => {
-    // Definimos el array de mensajes con el formato deseado.
+    // El contenido de tus mensajes
     const formattedMessages = [
       'Mi primer objetivo es aliviar ese estrés mental que nunca termina: contar los días para cobrar y sufrir por los números que no dan.',
       'Pero quiero que sepas algo: <strong class="text-white">no es tu culpa.</strong> El desorden se alimenta de la falta de claridad, y nuestro primer paso juntos será <span class="text-green-400 font-semibold">encender la luz.</span>',
@@ -40,13 +50,14 @@ export default function AnimatedMessage({ messages, finalMessage }: AnimatedMess
 
     return formattedMessages[msgIndex];
   };
-
+  
   const renderFinalMessageWithColors = (message: string) => {
     const words = message.split(' ');
     // Definimos los colores para las palabras, imitando la bandera de Argentina
     const totalWords = words.length;
     const third = Math.floor(totalWords / 3);
 
+    // FIX: Agregamos el "return" que faltaba
     return words.map((word, i) => {
       let colorClass = 'text-blue-300';
       if (i >= third && i < totalWords - third) {
@@ -66,11 +77,12 @@ export default function AnimatedMessage({ messages, finalMessage }: AnimatedMess
         {showFinalMessage ? (
           <motion.p
             key="final"
-            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: -20 }}
             transition={{ 
-                duration: 0.8,
-                ease: "easeOut"
+                duration: 0.7,
+                ease: "backOut" // Una animación con un poco de rebote
             }}
             className="text-4xl lg:text-5xl font-extrabold leading-tight" 
           >
@@ -82,7 +94,7 @@ export default function AnimatedMessage({ messages, finalMessage }: AnimatedMess
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.7 }}
+            transition={{ duration: 0.8, ease: "easeInOut" }}
             className="text-xl md:text-2xl text-gray-200 leading-relaxed italic"
             dangerouslySetInnerHTML={{ __html: renderMessageContent(index) }}
           />

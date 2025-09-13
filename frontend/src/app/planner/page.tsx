@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import InfoTooltip from '@/components/InfoTooltip';
@@ -10,8 +9,10 @@ import FloatingActionButton from '@/components/FloatingActionButton';
 import Modal from '@/components/Modal';
 import AddExpenseForm from '@/components/AddExpenseForm';
 import Header from '@/components/Header';
-import SectionHeader from '@/components/SectionHeader';
 import { FaPlus, FaSave } from 'react-icons/fa';
+import GamificationModule from '@/components/GamificationModule';
+import HeaderToggleButton from '@/components/HeaderToggleButton';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Tipos de datos
 interface BudgetItem {
@@ -57,6 +58,7 @@ export default function PlannerPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [refreshHeader, setRefreshHeader] = useState(0);
+    const [isHeaderVisible, setIsHeaderVisible] = useState(false);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     
@@ -183,8 +185,21 @@ export default function PlannerPage() {
     
     return (
       <>
-        <Header refreshTrigger={refreshHeader} />
-        <main className="flex min-h-screen flex-col items-center p-8 bg-gray-900 text-white font-sans md:pt-16">
+        <HeaderToggleButton isVisible={isHeaderVisible} onToggle={() => setIsHeaderVisible(!isHeaderVisible)} />
+        <AnimatePresence>
+          {isHeaderVisible && (
+            <motion.div
+              initial={{ y: '-100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '-100%', opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="sticky top-0 z-50"
+            >
+              <Header refreshTrigger={refreshHeader} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <main className={`flex min-h-screen flex-col items-center p-8 bg-gray-900 text-white font-sans transition-all duration-300 ${isHeaderVisible ? 'pt-8' : 'md:pt-16'}`}>
             <h1 className="text-4xl font-bold mb-8 text-center">Resumen del Mes</h1>
 
             <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
@@ -234,6 +249,10 @@ export default function PlannerPage() {
                         );
                     })}
                 </div>
+            </div>
+
+            <div className="mt-12 w-full max-w-4xl">
+              <GamificationModule />
             </div>
         </main>
         
