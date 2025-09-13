@@ -15,6 +15,7 @@ from schemas import TextInput, AIChatInput, OnboardingData, ChatMessageResponse,
 from dependencies import get_db, get_user_or_create, parse_expense_with_gemini, award_achievement, generate_plan_with_gemini, validate_parameters_with_gemini, generate_family_plan_with_gemini
 from dependencies import model_chat
 from routers import finance, cultivation, family, market_data, gamification, community, marketplace, subscription # IMPORTAMOS NUEVOS ROUTERS
+from fastapi.staticfiles import StaticFiles # <-- Añade esta línea
 import routers.services as services
 
 app = FastAPI(title="Resi API", version="6.0.0") # Versión actualizada
