@@ -308,8 +308,9 @@ def generate_family_plan_with_gemini(request: FamilyPlanRequest, db: Session, us
     """
     global model_family_plan_generator
     
-    user_income = db.query(BudgetItem).filter(BudgetItem.user_email == user.email, BudgetItem.category == "_income").first().allocated_amount
-    
+    income_item = db.query(BudgetItem).filter(BudgetItem.user_email == user.email, BudgetItem.category == "_income").first()
+    user_income = income_item.allocated_amount if income_item else 0
+
     # PROMPT CORREGIDO Y DETALLADO
     plan_prompt = textwrap.dedent(f"""
     Basado en los siguientes datos familiares:
@@ -453,7 +454,7 @@ def get_dashboard_summary(db: Session, user: User):
         expenses_this_month = db.query(Expense).filter(Expense.date >= start_of_month, Expense.user_email == user.email).all()
         total_spent = sum(expense.amount for expense in expenses_this_month)
         summary = {}
-        icons = {'Vivienda': '🏠', 'Servicios Básicos': '💡', 'Supermercado': '🛒', 'Kioscos': '🍫', 'Transporte': '🚗', 'Salud': '⚕️', 'Deudas': '💳', 'Préstamos': '🏦', 'Entretenimiento': '🎬', 'Hijos': '🧑\u200d🍼', 'Mascotas': '🐾', 'Cuidado Personal': '🧴', 'Vestimenta': '👕', 'Ahorro': '💰', 'Inversión': '📈', 'Otros': '💸'}
+        icons = {'Vivienda': '🏠', 'Servicios Básicos': '💡', 'Supermercado': '🛒', 'Kioscos': '🍫', 'Transporte': '🚗', 'Salud': '⚕️', 'Deudas': '💳', 'Préstamos': '🏦', 'Entretenimiento': '🎬', 'Hijos': '🧑‍🍼', 'Mascotas': '🐾', 'Cuidado Personal': '🧴', 'Vestimenta': '👕', 'Ahorro': '💰', 'Inversión': '📈', 'Otros': '💸'}
         for budget_item in budget_items:
             if budget_item.category == "_income": continue
             summary[budget_item.category] = { "category": budget_item.category, "allocated": budget_item.allocated_amount, "spent": 0, "icon": icons.get(budget_item.category, '💸')}
